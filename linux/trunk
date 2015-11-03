@@ -1,9 +1,0 @@
-#добавить поддержку 
-sudo apt-get install vlan
-
-#trunk
-auto eth0.1400
-iface eth0.1400 inet static
-        address 192.168.1.1
-        netmask 255.255.255.0
-        vlan_raw_device eth0

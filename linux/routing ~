@@ -1,8 +1,0 @@
-ip route add default via 192.168.206.1 dev eth2  table inet-table
-ip route add 10.8.0.0/24 dev tun0  scope link  table inet-table
-ip route add 192.168.206.0/24 dev eth2  scope link  table inet-table
-
-ip rule add from 10.8.0.0/24 table inet-table
-ip rule add from 192.168.206.3/32 table inet-table
-ip rule add to 213.183.57.55/32 table inet-table
-ip rule add to 185.61.149.228/32 table inet-table
