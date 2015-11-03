@@ -1,0 +1,75 @@
+[edit protocols openflow]
+ 
+##
+## Warning: number of elements exceeds limit of 1
+##
+switch OF_switch_1 {
+    default-action {
+        packet-in;
+    }
+    interfaces {
+        ge-3/0/0.0;
+        ge-3/0/1.0;
+    }
+    purge-flow-timer 160;
+    controller {
+        protocol {
+            tcp {
+                port 6653;
+            }
+        }
+        address 10.31.10.120;
+    }
+}
+switch OF_switch_2 {
+    default-action {
+        packet-in;                      
+    }
+    interfaces {
+        ge-3/0/2.0;
+        ge-3/0/3.0;
+    }
+    purge-flow-timer 160;
+    controller {
+        protocol {
+            tcp {
+                port 6653;
+            }
+        }
+        address 10.31.10.122;
+    }
+}
+traceoptions {
+    file OF_trace;
+    flag configuration;
+    flag flow;
+    flag statistics;
+}
+
+[edit routing-instances]
+
+OF_switch_1_vs {
+    description --OF_switch_1_virtual_switch--;
+    instance-type virtual-switch;
+    bridge-domains {
+        OF_sw_1_bd {
+            domain-type bridge;
+            vlan-id none;
+            interface ge-3/0/0.0;
+            interface ge-3/0/1.0;
+        }
+    }
+}
+OF_switch_2_vs {
+    description --OF_switch_2_virtual_switch--;
+    instance-type virtual-switch;
+    bridge-domains {
+        OF_sw_2_bd {                    
+            domain-type bridge;
+            vlan-id none;
+            interface ge-3/0/2.0;
+            interface ge-3/0/3.0;
+        }
+    }
+}
+

@@ -1,0 +1,9 @@
+opennic-fvz-rec-ru-mow-01
+dnscrypt-proxy -R mydnsprovider
+-a	--local-address=<ip>[:port]
+-d
+-l	--logfile=...
+-N	--provider-name=...
+-u, --user=<user name>
+
+dnscrypt-proxy -a 127.0.0.1:2053 -d -l /var/log/dnscrypt/dnscrypt.log -R opennic-fvz-rec-ru-mow-01 -u dnscrypt
