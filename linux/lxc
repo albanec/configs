@@ -1,0 +1,183 @@
+# ставим утилиты & проверка установки
+apt-get install lxc lxctl lxc-templates bridge-utils
+lxc-checkconfig
+
+1. Создание контейнера
+# добавить юзера-администратора контейнеров
+useradd $lxc_admin -m -s /bin/bash -p $passwd
+groupadd lxc
+usermod -G lxc -a $lxc_admin
+
+# шаблоны для контейнеров лежат здесь:
+ls /usr/share/lxc/templates		# если необходимо добавить новый, то скать и положить в папку
+
+# создаем контейнер
+lxc-create -n $lxc_name -t $lxd_type -- -b $lxc_admin 
+# -t - тип системы 
+# -n - имя контейнера
+# -b - администратор контейнера
+
+# настройка автозапуска контейнеров
+nano /var/lib/lxc/C1/config
+	lxc.start.auto = 1
+	lxc.start.delay = 5		# задержка между стартами контейнеров   
+
+# запуск контейнера & проверка состояния
+lxc-start -d -n $lxc_name
+lxc-ls --fancy
+
+# подключение к контейнеру
+lxc-console -n $lxc_name
+
+2. Работа с сетью
+
+2.1 NAT-режим
+
+# NAT-режим работает из коробки
+# lxcbr0 - шлюз вирт-сети, создается автоматически
+
+2.2 Bridge-режим
+
+# отключить фильтрацию бриджа / вкл форвардинг 
+echo 0 > /proc/sys/net/bridge/bridge-nf-call-arptables
+echo 0 > /proc/sys/net/bridge/bridge-nf-call-iptables
+echo 0 > /proc/sys/net/bridge/bridge-nf-call-ip6tables
+echo 1 > /proc/sys/net/ipv4/ip_forward
+
+nano /etc/network/interfaces
+	# в нём прописываем бридж для связи вирт-сети с внешним int и маршруты на виртуалки
+	auto br0
+	iface br0 inet static
+		bridge_ports eth0 
+		bridge_fd 0
+		bridge_maxage 0
+		bridge_waitport 0
+		bridge_stp off
+
+		address 192.168.0.253
+		netmask 255.255.248.0
+		gateway 192.168.0.1
+		dns-nameservers 192.168.0.1
+		#pre-up brctl addbr virbr0 
+        #pre-down brctl delbr virbr0
+		up route add -host $lc_address dev br0
+		down route del -host $lc_address dev br0
+        #up route add -net 192.168.1.0 netmask 255.255.255.0 gw 192.168.1.1 br0
+
+	
+cd /var/lib/lxc/$lxc_name
+
+# редактируем сетевые настройки 
+nano config
+	# тип сети (виртуальный интерфейс)
+	lxc.network.type = veth
+	# авто-up интерфейса
+	lxc.network.flags = up
+	# Физический сетевой адаптер, к которому будет подключен lxc
+	lxc.network.link = br0 
+	# Имя виртуального адаптера внутри lxc
+	lxc.network.name = eth0 
+	# Имя виртуального адаптера на хостовой машине
+	lxc.network.veth.pair = veth0 
+	# ip-адрес lxc
+	lxc.network.ipv4 = 192.168.0.101/24 
+	# шлюз для lxc
+	lxc.network.ipv4.gateway = 192.168.0.1 
+	# mac для lxc
+	lxc.network.hwaddr = 00:1E:2D:F7:E3:4F
+
+# в контейнере (необязательно)
+nano /etc/network/interfaces
+	iface eth0 inet static
+	address $lxc_address
+	netmask 255.255.255.0
+	gateway 203.0.113.1
+	dns-nameservers 10.31.10.171
+	post-up /usr/sbin/arping -c 4 -I eth0 -q $lxc_address
+
+2.3 Internal-network
+
+# создать bridge
+auto lxcbr1
+	iface lxcbr0 inet static
+    bridge_ports none
+    bridge_fd 0
+    address 10.0.0.1
+    netmask 255.255.255.0
+
+# в настройках контейнера
+lxc.network.type = veth
+lxc.network.flags = up
+lxc.network.link = lxcbr1
+lxc.network.name = eth0
+lxc.network.veth.pair = veth1
+lxc.network.ipv4 = 10.0.0.10/24
+lxc.network.ipv4.gateway = 10.0.0.1
+lxc.network.hwaddr = 00:1E:2D:F7:E3:4E
+
+# для dhcp 
+nano /etc/dhcp/dhcpd.conf
+	# раскомментируем строку
+	authoritative;
+	# для блока виртуальной подсети
+	subnet 10.0.0.0 netmask 255.255.255.0 {
+  	range 10.0.0.10 10.0.0.50;
+  	option domain-name-servers 192.168.0.1, 8.8.8.8;
+  	option domain-name "somehost.com";
+  	option routers 10.0.0.1;
+  	default-lease-time 600;
+  	max-lease-time 7200;
+	}
+
+#запустить dhcp-сервер на вирт интерфейсе
+nano /etc/default/isc-dhcp-server
+	INTERFACES="lxcbr1"
+
+# включить форвардинг 
+nano /etc/sysctl.conf
+	net.ipv4.ip_forward=1 
+
+sysctl -p
+
+# форвардинг 
+iptables -I FORWARD 1 -i $EXT_IF -o $INT_IF -d $LAN_IP -p tcp -m tcp --dport $SRV_PORT -j ACCEPT
+
+# NAT для контейнеров
+iptables -A POSTROUTING -s 10.0.0.0/24 -o lxbr0 -j MASQUERADE 
+
+# проброс портов в контейнер
+iptables -A PREROUTING -p tcp -m tcp -d 192.168.0.100 --dport 5678 -j DNAT --to-destination 10.0.0.10:22 
+
+3. Немного команд
+
+# список всех контейнеров
+lxc-ls
+# клонировать C1 с именем С2
+lxc-clone -o C1 -n C2
+# остновить
+lxc-stop -n C1
+# удалить 
+lxc-destroy -n C1
+# зайти в консоль
+lxc-console -n C1
+# пауза
+lxc-freeze -n C1
+# разморозить 
+lxc-unfreeze -n C1
+
+4. Frontend
+
+# добавляем
+apt-get install python-flask
+
+# установка
+wget -O - http://claudyus.github.io/LXC-Web-Panel/claudyus.gpg.key | sudo apt-key add -
+echo "deb http://claudyus.github.io/LXC-Web-Panel/ debian/" | sudo tee /etc/apt/sources.list.d/lwp.list
+apt-get update
+apt-get install lwp
+
+# настройка
+cp /etc/lwp/lwp.example.conf /etc/lwp/lwp.conf
+nano /etc/lwp/lwp.conf 
+service lwp start
+#default-user : admin/admin

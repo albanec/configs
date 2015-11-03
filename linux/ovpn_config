@@ -1,0 +1,119 @@
+
+
+
+#1. установка
+
+sudo apt-get install openvpn easy-rsa
+
+#2. Генерация ключей
+	#2.1 Генерация корневого сертификата 
+
+		#в debian easy-rsa лежит скорее всего 
+		ls /usr/share/doc/openvpn/examples/easy-rsa/
+		
+		#копирование скриптов генерации в ovpn
+		mkdir /etc/openvpn/easy-rsa/
+		cp -r /usr/share/easy-rsa/* /etc/openvpn/easy-rsa/
+		
+		nano /etc/openvpn/easy-rsa/vars
+			
+			#в нем  прописать
+			export KEY_COUNTRY="US"
+			export KEY_PROVINCE="NC"
+			export KEY_CITY="Winston-Salem"
+			export KEY_ORG="Example Company"
+			export KEY_EMAIL="steve@example.com"
+			export KEY_CN=MyVPN
+			export KEY_NAME=MyVPN
+			export KEY_OU=MyVPN
+			export KEY_ALTNAMES="something"
+
+		#очистить&перегенерить ключи 
+		cd /etc/openvpn/easy-rsa/
+		source vars
+		./clean-all
+		./build-ca
+
+	#2.2 Генерация серверного сертификата 
+
+		./build-key-server MyVPNserver
+		
+		#создаем dh-ключи
+		./build-dh 
+	
+	#2.3 Генерация клиентских сертификатов
+	
+		cd /etc/openvpn/easy-rsa/
+		source vars
+		
+		# для каджого клиента генерируется индивидуальный ключ
+		./build-key client1
+
+	#2.4 ВСЕ серверные ключи и CA-сертификат преенести в корень ovpn (/etc/openvpn)
+
+		cd /etc/openvpn/easy-rsa/keys/
+		cp MyVPNserver.crt MyVPNserver.key ca.crt dh2048.pem /etc/openvpn/
+
+	#2.5 CA-сертификат и клиентские ключи перенести на машины клиентов. Ключи клиентов УДАЛИТЬ с сервера 
+
+		#Нужные ключи здесь 
+
+		/etc/openvpn/ca.crt
+		/etc/openvpn/easy-rsa/keys/client1.crt
+		/etc/openvpn/easy-rsa/keys/client1.key
+
+#3 Настройка сервера
+	
+	#копируем&разархивируем файлы конфигурации в корень ovpn
+	
+	sudo cp /usr/share/doc/openvpn/examples/sample-config-files/server.conf.gz /etc/openvpn/
+	sudo gzip -d /etc/openvpn/server.conf.gz
+
+	#заходим в server.conf.gz и настраиваем
+
+	sudo nano /etc/openvpn/server.conf
+		
+		#основные строки
+
+		local 192.168.56.2
+		port 1194
+		dev tun
+		ca ca.crt
+		cert myservername.crt
+		key myservername.key 
+		dh dh2048.pem
+		push "route 0.0.0.0 0.0.0.0"
+		
+#4 Настройка клиента
+	
+	#устанавливаем, копируем конфиг и ключи
+	
+	sudo apt-get install openvpn
+	sudo cp /usr/share/doc/openvpn/examples/sample-config-files/client.conf /etc/openvpn/
+	cp ca.crt /etc/openvpn
+	cp client1.crt /etc/openvpn
+	cp client1.key /etc/openvpn
+	
+	#настройка
+	nano /etc/openvpn/client.conf 
+		
+		#основные строки
+		ca ca.crt
+		cert client1.crt
+		key client1.key	
+		cipher DES-EDE3-CBC
+	
+	#скопировать конфиг в корень
+	sudo cp /usr/share/doc/openvpn/examples/sample-config-files/client.conf /etc/openvpn/
+
+#5 Маршрутизация на сервере
+	#Разрешить форвардинг	
+	sudo nano /etc/sysctl.conf
+		#раскомментировать
+		net.ipv4.ip_forward = 1
+	#добавить в конфиг openvpn маршруты 
+	push "route 192.168.1.0 255.255.255.0"
+
+sudo /etc/init.d/networking restart
+sudo service openvpn restart
+

@@ -1,0 +1,506 @@
+# подсети & base-хосты
+$lo
+$noc_host
+!
+$ext_lo1
+$ext_lo2
+$base_net1 
+$base_net2 
+$base_net3
+$base_net4
+$base_net5
+$base_net6
+$base_net7
+$base_net8
+$base_net9
+!
+# логические интерфейсы
+$noc_int
+$base_int1
+$base_int2
+$base_int3
+$base_int4
+$base_int5
+$base_int6
+$base_int7
+$base_int8
+!
+# физические транки
+$tr_int1
+$tr_int2
+$tr_int3
+$tr_int4
+$tr_int5
+$tr_int6
+$tr_int7
+$tr_int8
+$tr_int9
+!
+# адреса протокольных хостов
+$NOC_host
+$NTP_srv_host
+$BGP_RR_host
+$SNMP_srv_host
+!
+###########отключаем ненужное & включаем нужное###########
+!
+no service tcp-small-servers  
+no service udp-small-servers 
+no service finger  
+no service dhcp
+no service config  
+no service pad 
+no ip finger
+no ip source-route  
+no ip http server  
+no ip http secure-server
+no ip domain-lookup  
+no ip bootp server  
+no ip gratuitous-arps  
+no ip identd  
+no cdp run  
+!
+service tcp-keepalives-in
+service tcp-keepalives-out
+service timestamps debug datetime localtime
+service timestamps log datetime localtime
+service password-encryption
+no service dhcp
+no platform punt-keepalive disable-kernel-core
+!
+no mpls ip propagate-ttl forwarded
+!
+snmp-server source-interface informs lo0
+snmp-server source-interface traps lo0
+!
+ntp source lo0
+!
+###########элементы фильтров###############
+!
+object-group network ext_NOC_hosts
+    $NOC_host /32
+!
+object-group network ext_NTP_srv
+    $NTP_srv_host /32
+!
+object-group network ext_BGP_rr
+description external_BGP_reflectors
+    $BGP_RR_host /32
+!
+object-group network BASE_hosts
+    $ext_lo1 /32
+    $ext_lo2 /32
+    $base_net1 /24
+    $base_net2 /24
+    $base_net3 /24
+    $base_net4 /24
+    $base_net5 /24
+    $base_net6 /24
+    $base_net7 /24
+    $base_net8 /24
+    $base_net9 /24
+!
+###########ограничение на доступ###########
+!
+login block-for 100 attempts 5 within 60  
+login on-failure log 
+login on-success log
+!
+no snmp-server community fsonetro RO 1301
+line vty 0 4
+no access-class 101 in vrf-also
+line vty 5 15
+no access-class 101 in vrf-also
+!
+no access-list 1301
+no access-list 101
+!
+ip access-list standard SNMP_fw
+    1 permit host $SNMP_srv_host
+!
+ip access-list extended SSH_fw
+    1 permit ip object-group ext_NOC_hosts any
+    2 permit ip object-group BASE_hosts any
+!
+snmp-server community fsonetro RO SNMP_fw
+!
+line vty 0 4
+access-class SSH_fw in vrf-also
+line vty 5 15
+access-class SSH_fw in vrf-also
+!
+control-plane host
+management-interface $base_int2 allow ssh snmp
+management-interface $noc_int allow ssh tftp snmp
+management-interface $base_int1 allow ssh snmp 
+management-interface $base_int3 allow ssh  snmp
+management-interface $base_int4 allow ssh  snmp
+management-interface $base_int5 allow ssh  snmp
+management-interface $base_int6 allow ssh  snmp
+management-interface $base_int7 allow ssh  snmp
+management-interface $base_int8 allow ssh  snmp
+!
+###########политики для фильтрации###########
+!
+ip access-list extended RE_bgp
+    1 permit tcp object-group ext_BGP_rr gt 1024 host $lo eq 179
+    2 permit tcp object-group ext_BGP_rr eq 179 host $lo gt 1024 established
+!
+ip access-list extended RE_vrrp
+    1 permit 112 any host 224.0.0.18
+    2 permit 51 any host 224.0.0.18
+!
+ip access-list extended RE_noc
+    1 permit ip object-group ext_NOC_hosts any 
+!
+ip access-list extended RE_snmp 
+    1 permit udp any any eq snmp
+!
+ip access-list extended RE_ssh
+    1 permit tcp any host $noc_host eq 22
+    2 permit tcp any host $lo eq 22
+    3 permit tcp any object-group BASE_hosts eq 22
+!
+ip access-list extended RE_ntp
+    1 permit udp object-group ext_NTP_srv host $lo eq 123
+!
+ip access-list extended RE_bfd
+    1 permit udp any range 49152 65535 $base_net1 0.0.0.255 range 3784 3785
+    2 permit udp any range 49152 65535 $base_net2 0.0.0.255 range 3784 3785
+    3 permit udp any range 49152 65535 host $lo range 3784 3785
+!
+ip access-list extended RE_ldp_discover
+    1 permit udp any host 224.0.0.2 eq 646
+!
+ip access-list extended RE_ldp_unicast
+    1 permit tcp any eq 646 $base_net1 0.0.0.255
+    2 permit tcp any $base_net1 0.0.0.255 eq 646 
+    3 permit tcp any eq 646 host $lo
+    4 permit tcp any host $lo eq 646
+    5 permit tcp any eq 646 $base_net2 0.0.0.255
+    6 permit tcp any $base_net2 0.0.0.255 eq 646
+    7 permit tcp any eq 646 $base_net3 0.0.0.255
+    8 permit tcp any $base_net3 0.0.0.255 eq 646
+    9 permit tcp any eq 646 $base_net4 0.0.0.255
+    10 permit tcp any $base_net4 0.0.0.255 eq 646
+    11 permit tcp any eq 646 $base_net5 0.0.0.255
+    12 permit tcp any $base_net5 0.0.0.255 eq 646
+    13 permit tcp any eq 646 $base_net6 0.0.0.255
+    14 permit tcp any $base_net6 0.0.0.255 eq 646
+!
+ip access-list extended RE_tldp
+    1 permit udp any $base_net1 0.0.0.255 eq 646
+    2 permit udp any $base_net2 0.0.0.255 eq 646
+    3 permit udp any $base_net3 0.0.0.255 eq 646
+    4 permit udp any $base_net4 0.0.0.255 eq 646
+    5 permit udp any $base_net5 0.0.0.255 eq 646
+    6 permit udp any $base_net6 0.0.0.255 eq 646        
+    7 permit udp any host $lo eq 646
+!
+ip access-list extended RE_rsvp 
+    1 permit 46 any any
+!
+ip access-list extended RE_gre
+    1 permit gre any $base_net1 0.0.0.255 
+    2 permit gre any $base_net2 0.0.0.255
+    3 permit gre any $base_net3 0.0.0.255
+    4 permit gre any $base_net4 0.0.0.255
+    5 permit gre any $base_net5 0.0.0.255
+    6 permit gre any $base_net6 0.0.0.255
+    7 permit gre any host $lo
+!
+ip access-list extended RE_radius
+    1 permit udp host 10.1.0.212 range 1812 1813 host $lo eq 1645
+!
+ip access-list extended RE_icmp
+    1 permit icmp any any echo
+    2 permit icmp any any echo-reply 
+    3 permit icmp any any ttl-exceeded
+    4 permit icmp any any packet-too-big
+    5 permit icmp any any port-unreachable
+    6 permit icmp any any unreachable 
+!
+ip access-list extended RE_dis_tcp
+    1 permit tcp any any 
+!
+ip access-list extended RE_dis_udp
+    1 permit tcp any any 
+!
+ip access-list extended RE_dis_ip
+    1 permit ip any any 
+!
+ipv6 access-list RE_dis_ipv6
+    permit any any 
+!
+ip access-list extended RE_fragments
+    1 permit tcp any any fragments
+    2 permit udp any any fragments
+    3 permit icmp any any fragments
+    4 permit ip any any fragments
+!
+class-map match-any RE_routing
+    match access-group name RE_bfd
+    match access-group name RE_bgp
+!
+class-map match-any RE_mpls_support
+    match access-group name RE_ldp_discover
+    match access-group name RE_ldp_unicast
+    match access-group name RE_tldp         
+    match access-group name RE_rsvp
+    match access-group name RE_gre
+!
+class-map match-any RE_common_services
+    match access-group name RE_noc
+    match access-group name RE_snmp
+    match access-group name RE_ssh
+    match access-group name RE_ntp 
+    match access-group name RE_radius
+    match access-group name RE_vrrp
+!
+class-map match-all RE_icmp
+    match access-group name RE_icmp
+!
+class-map match-any RE_discard
+    match access-group name RE_dis_tcp
+    match access-group name RE_dis_udp
+    match access-group name RE_dis_ip
+    match access-group name RE_dis_ipv6
+!
+class-map match-all RE_fragments
+    match access-group name RE_fragments
+!
+class-map match-all RE_arp
+    match protocol arp
+!
+policy-map RE_copp
+ description RE_control_plane_protection
+ class RE_fragments
+  police rate 1 pps
+   conform-action drop 
+   exceed-action drop 
+ class RE_routing
+ class RE_mpls_support
+ class RE_common_services
+ class RE_icmp
+  police rate 1000000 bps
+   conform-action transmit 
+   exceed-action drop 
+ class RE_arp
+ class RE_discard
+  police rate 1 pps
+   conform-action drop 
+   exceed-action drop 
+ class class-default
+  police rate 1000000 bps
+   conform-action transmit 
+   exceed-action transmit 
+!
+!
+control-plane 
+    service-policy input RE_copp
+!
+!
+###########на интерфейсах###########
+!
+ip verify drop-rate notify hold-down 30
+!
+int $tr_int5.3
+ip virtual-reassembly 
+no ip directed-broadcast
+no ip proxy-arp
+no ip unreachables
+no ip mask-reply
+no ip redirects
+ip verify unicast source reachable-via rx allow-self-ping
+ip verify unicast notification threshold 10
+snmp trap ip verify drop-rate
+!
+int $tr_int5.4
+ip virtual-reassembly 
+no ip directed-broadcast
+no ip proxy-arp
+no ip unreachables
+no ip mask-reply
+no ip redirects
+ip verify unicast source reachable-via rx allow-self-ping
+ip verify unicast notification threshold 10
+snmp trap ip verify drop-rate
+!
+int $tr_int5.7
+ip virtual-reassembly 
+no ip directed-broadcast
+no ip proxy-arp
+no ip unreachables
+no ip mask-reply
+no ip redirects
+ip verify unicast source reachable-via rx allow-self-ping
+ip verify unicast notification threshold 10
+snmp trap ip verify drop-rate
+!
+int $tr_int5.10
+ip virtual-reassembly 
+no ip directed-broadcast
+no ip proxy-arp
+no ip unreachables
+no ip mask-reply
+no ip redirects
+ip verify unicast source reachable-via rx allow-self-ping
+ip verify unicast notification threshold 10
+snmp trap ip verify drop-rate
+!
+int $tr_int5.13
+ip virtual-reassembly 
+no ip directed-broadcast
+no ip proxy-arp
+no ip unreachables
+no ip mask-reply
+no ip redirects
+ip verify unicast source reachable-via rx allow-self-ping
+ip verify unicast notification threshold 10
+snmp trap ip verify drop-rate
+!
+int $tr_int5.15
+ip virtual-reassembly 
+no ip directed-broadcast
+no ip proxy-arp
+no ip unreachables
+no ip mask-reply
+no ip redirects
+ip verify unicast source reachable-via rx allow-self-ping
+ip verify unicast notification threshold 10
+snmp trap ip verify drop-rate
+!
+int $tr_int5.17
+ip virtual-reassembly 
+no ip directed-broadcast
+no ip proxy-arp
+no ip unreachables
+no ip mask-reply
+no ip redirects
+ip verify unicast source reachable-via rx allow-self-ping
+ip verify unicast notification threshold 10
+snmp trap ip verify drop-rate
+
+!
+interface $base_int1
+ip virtual-reassembly 
+no ip directed-broadcast
+no ip proxy-arp
+no ip unreachables
+no ip mask-reply
+no ip redirects
+!
+interface $base_int2
+ip virtual-reassembly 
+no ip directed-broadcast
+no ip proxy-arp
+no ip unreachables
+no ip mask-reply
+no ip redirects
+!
+interface $base_int3
+ip virtual-reassembly 
+no ip directed-broadcast
+no ip proxy-arp
+no ip unreachables
+no ip mask-reply
+no ip redirects
+!
+interface $base_int4
+ip virtual-reassembly 
+no ip directed-broadcast
+no ip proxy-arp
+no ip unreachables
+no ip mask-reply
+no ip redirects
+!
+interface $base_int5
+ip virtual-reassembly 
+no ip directed-broadcast
+no ip proxy-arp
+no ip unreachables
+no ip mask-reply
+no ip redirects
+!
+interface $base_int6
+ip virtual-reassembly 
+no ip directed-broadcast
+no ip proxy-arp
+no ip unreachables
+no ip mask-reply
+no ip redirects
+!
+interface $base_int7
+ip virtual-reassembly 
+no ip directed-broadcast
+no ip proxy-arp
+no ip unreachables
+no ip mask-reply
+no ip redirects
+!
+interface $base_int8
+ip virtual-reassembly 
+no ip directed-broadcast
+no ip proxy-arp
+no ip unreachables
+no ip mask-reply
+no ip redirects
+!
+interface $noc_int
+ip virtual-reassembly 
+no ip directed-broadcast
+no ip proxy-arp
+no ip unreachables
+no ip mask-reply
+no ip redirects
+!
+interface $tr_int1
+no mop enable
+no cdp enable
+!
+interface $tr_int2
+no mop enable
+no cdp enable
+!
+interface $tr_int3
+no mop enable
+no cdp enable
+!
+interface $tr_int4
+no mop enable
+no cdp enable
+!
+interface $tr_int5
+no mop enable
+no cdp enable
+!
+interface $tr_int6
+no mop enable
+no cdp enable
+!
+interface $tr_int7
+no mop enable
+no cdp enable
+!
+interface $tr_int8
+no mop enable
+no cdp enable
+!
+interface $tr_int9
+no mop enable
+no cdp enable
+!
+interface Loopback0
+no ip redirects
+no ip unreachables
+no ip proxy-arp
+!
+interface Loopback1
+no ip redirects
+no ip unreachables
+no ip proxy-arp
+!
+interface Null0
+no ip unreachables
+!
+

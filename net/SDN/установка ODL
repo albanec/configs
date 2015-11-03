@@ -1,0 +1,95 @@
+# установка контроллера ODL
+
+1. Подготовка
+sudo apt-get install openjdk-7-jdk
+sudo apt-get install git
+
+# установка maven
+mkdir -p /usr/local/apache-maven
+wget http://ftp.wayne.edu/apache/maven/maven-3/3.3.3/binaries/apache-maven-3.3.3-bin.tar.gz
+mv apache-maven-3.3.3-bin.tar.gz /usr/local/apache-maven
+tar -xzvf /usr/local/apache-maven/apache-maven-3.3.3-bin.tar.gz -C /usr/local/apache-maven/
+
+update-alternatives --install /usr/bin/mvn mvn /usr/local/apache-maven/apache-maven-3.3.3/bin/mvn 1
+update-alternatives --config mvn
+
+nano ~/.bashrc
+	# добавить
+	export M2_HOME=/usr/local/apache-maven/apache-maven-3.3.3
+	export MAVEN_OPTS="-Xms256m -Xmx512m" 
+	export JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64 
+
+sudo update-alternatives --config java
+
+2.1 Установка из исходников
+# забираем ODL
+mkdir ODL-diy && cd ODL-diy
+git clone https://github.com/opendaylight/integration.git
+
+curl https://raw.githubusercontent.com/opendaylight/odlparent/master/settings.xml --create-dirs -o ~/.m2/settings.xml
+mvn clean install -DskipTests
+
+# установка ovs
+sudo apt-get install openvswitch-switch openvswitch-controller
+sudo service openvswitch-controller stop
+sudo service openvswitch-switch stop
+
+cd distributions/karaf/target/assembly/bin
+./karaf -of13		#или ./karaf clean -of13
+# откроется консоль
+#
+# web-интерфейс доступен здесь
+ http://127.0.0.1:8181/index.html
+ 	#или так 
+ 	http://localhost:8181/dlux/index.html
+# restconf доступен здесь
+http://127.0.0.1:8181/restconf/operational/network-topology:network-topology
+# API browser доступен здесь
+http://127.0.0.1:8181/apidoc/explorer/index.html
+
+2.2 Установка готовой сборки 
+
+mkdir ODL-stock && cd ODL-stock
+#качаем
+wget https://nexus.opendaylight.org/content/repositories/opendaylight.release/org/opendaylight/integration/distribution-karaf/0.3.2-Lithium-SR2/distribution-karaf-0.3.2-Lithium-SR2.tar.gz
+tar xf distribution-karaf-0.3.0-Lithium.tar.gz
+#запускаем
+./bin/karaf
+
+3. установка модулей ODL
+
+# в консоли ODL ставим модули
+ 	# l2-switch app
+ 	feature:install odl-l2switch-switch-ui
+	#стандартная обвязка + web-интерфейс (DLUX)
+	feature:install odl-restconf odl-l2switch-switch odl-mdsal-apidocs odl-dlux-core 
+
+#немного модулей
+odl-dlux-all 
+# REST-conf
+odl-restconf
+# поддержка LACP
+odl-lacp-ui
+# BGP/PCEP
+odl-bgpcep-bgp-all
+# LISP
+odl-lispflowmapping-all
+# OVSDB + OpenStack Neutron интеграция
+odl-ovsdb-all
+odl-ovsdb-openstack
+# OpenFlow
+odl-openflowplugin-flow-services-ui
+# group policy и пр.
+odl-groupbasedpolicy-ofoverlay
+# интерфейс взаимодействия можду контроллерами
+odl-sdninterfaceapp-all
+# SNMP 
+odl-snmp-plugin
+
+# список модулей здесь
+https://www.opendaylight.org/installing-opendaylight
+# полная документация здесь
+https://github.com/opendaylight/docs/tree/stable/lithium
+# wiki продукта
+https://wiki.opendaylight.org/view/Main_Page
+	

@@ -1,0 +1,688 @@
+$bgp_pswd
+$isis_pswd
+$rsvp_pswd
+$bfd_pswd
+$vrrp_pswd
+!
+$ext_lo1
+$ext_lo2
+!
+$NOC_host
+
+###########отключаем ненужное & включаем нужное###########
+
+[edit system]
+services {
+    ssh {
+        protocol-version v2;
+        root-login deny;
+        no-tcp-forwarding;
+        root-login deny;
+    }
+}
+
+[edit protocols mpls]
+no-propagate-ttl;
+
+[edit protocol ldp]
+
+[edit protocols bgp]
+group internal {
+    authentication-key $bgp_pswd;
+}
+
+[edit protocols rsvp]
+interface $interface {
+    authentication-key $rsvp_pswd;
+}
+
+###########prefix lists###########
+
+[edit policy-options]
+
+prefix-list MCAST_vrrp {
+    224.0.0.18/32;
+}
+prefix-list MCAST_all_rt {
+    224.0.0.2/32;
+}
+prefix-list ext_BGP_rr {
+    apply-path "protocols bgp group <*> neighbor <*>";
+}
+prefix-list ext_BGP_logical_systems {
+    apply-path "logical-systems <*> protocols bgp group <*> neighbor <*>";
+}
+prefix-list ext_RADIUS_srv {
+    apply-path "system radius-server <*>";
+}
+prefix-list ext_TACACS_srv {
+    apply-path "system tacplus-server <*>";
+}
+prefix-list ext_NTP_srv {
+    apply-path "system ntp server <*>";
+}
+prefix-list ext_SNMP_srv {
+    apply-path "snmp client-list <*> <*>";
+}
+prefix-list ext_SNMP_community_list {
+    apply-path "snmp community <*> clients <*>";
+}
+prefix-list ext_DNS_srv {
+    apply-path "system name-server <*>";
+}
+prefix-list int_all_hosts {
+    apply-path "interfaces <*> unit <*> family inet address <*>";
+}
+prefix-list int_all_hosts_logical_systems {
+    apply-path "logical-systems <*> interfaces <*> unit <*> family inet address <*>";
+}
+prefix-list int_vpn_hosts {
+    apply-path "interfaces <*> unit <*> family inet address <*/24>";
+}
+prefix-list int_lo0_hosts {
+    apply-path "interfaces lo0 unit <*> family inet address <*>";
+}
+prefix-list int_vpn_hosts_logical_systems {
+    apply-path "logical-systems <*> interfaces <*> unit <*> family inet address <*/24>";
+}
+prefix-list int_lo0_hosts_logical_systems {
+    apply-path "logical-systems <*> interfaces lo0 unit <*> family inet address <*>";
+}
+prefix-list ext_NOC_hosts {
+    $NOC_host/32;
+}
+
+prefix-list ext_NOC_hosts {
+    $ext_lo1;
+    $ext_lo2;
+}
+
+[edit firewall]
+policer 100k {
+    if-exceeding {
+        bandwidth-limit 100k;
+        burst-size-limit 16k;
+    }
+    then discard;
+}
+policer 1m {
+    if-exceeding {
+        bandwidth-limit 1m;
+        burst-size-limit 16k;
+    }
+    then discard;
+}
+##########################RE_routing################# 
+
+filter RE_bgp {
+    term accept_bgp {
+        from {
+            source-prefix-list {
+                ext_BGP_rr;
+                ext_BGP_logical_systems;
+            }
+            protocol tcp;
+            port bgp;
+            destination-prefix-list {
+                int_lo0_hosts;
+                int_lo0_hosts_logical_systems;
+            }
+        }
+        then {
+            count RE_bgp;
+            accept;
+        }
+    }
+}
+filter RE_bfd {
+    term accept_bfd {
+        from {
+            source-prefix-list {
+                int_all_hosts;
+                int_all_hosts_logical_systems;
+                
+            }
+            destination-prefix-list {
+                int_all_hosts;
+                int_all_hosts_logical_systems;
+                
+            }
+            protocol udp;
+            source-port 49152-65535;
+            destination-port 3784-3785;
+        }  
+        then {
+            count RE_bfd;
+            accept;
+        }
+    }
+}
+
+filter RE_routing {
+    term accept_bgp {
+        filter RE_bgp;
+    }
+    term accept_bfd {
+        filter RE_bfd;
+    }
+}
+
+##########################RE_mpls_support################# 
+
+filter RE_ldp {
+    term accept_ldp_discover {
+        from {
+        
+            destination-prefix-list {
+                MCAST_all_rt;
+            }
+            protocol udp;
+            destination-port ldp;
+        }
+        then {
+            count RE_ldp_discover;
+            accept;
+        }
+    }
+    term accept_ldp_unicast {
+        from {
+            destination-prefix-list {
+                int_all_hosts;
+                int_all_hosts_logical_systems;
+            }
+            protocol tcp;
+            port ldp;
+        }
+        then {
+            count RE_ldp_unicast;
+            accept;
+        }
+    }
+    term accept_tldp {
+        from {
+            destination-prefix-list {
+                int_all_hosts;
+                int_all_hosts_logical_systems;
+            }
+            protocol udp;
+            destination-port ldp;
+        }
+        then {
+            count RE_tldp;
+            accept;
+        }
+    }
+}
+filter RE_rsvp {
+    term accept_rsvp {
+        from {
+            destination-prefix-list {
+                int_all_hosts;
+                int_all_hosts_logical_systems;
+            }
+            protocol rsvp;
+        }
+        then {
+            count RE_rsvp;
+            accept;
+        }
+    }
+}
+filter RE_gre {
+    term accept_rsvp {unit 2 {
+    description --NOC_loopback--;
+    family inet {
+        filter {
+            input-list [ RE_dis_frags RE_icmp RE_remote_mgmt RE_dis_all ];
+        }
+        address 10.192.0.1/32;
+    }
+    family inet6 {
+        filter {
+            input RE_dis_ipv6;
+        }
+    }
+}
+
+        from {
+            destination-prefix-list {
+                int_all_hosts;
+                int_all_hosts_logical_systems;
+            }
+            protocol rsvp;
+        }
+        then {
+            count RE_rsvp;
+            accept;
+        }
+    }
+}
+filter RE_mpls_support {
+    term accept_ldp {
+        filter RE_ldp;
+    }
+    term accept_rsvp {
+        filter RE_rsvp;
+    }
+    term accept_gre {
+        filter RE_gre;
+    }
+}
+
+##########################RE_common_servicies#################
+
+filter RE_vrrp {
+    term accept_vrrp {
+        from {
+            source-prefix-list {
+                int_vpn_hosts;
+                int_vpn_hosts_logical_systems;
+            }
+            destination-prefix-list {
+                MCAST_vrrp;
+            }
+            protocol [ vrrp ah ];
+        }
+        then {
+            count RE_vrrp;
+            accept;
+        }
+    }
+}
+filter RE_snmp {
+    term accept_snmp {
+        from {
+            source-prefix-list {
+                ext_SNMP_srv;
+                ext_SNMP_community_list;
+            }
+            destination-prefix-list {
+                int_lo0_hosts;
+                int_lo0_hosts_logical_systems;
+            }
+            protocol udp;
+            destination-port snmp;
+        }
+        then {
+            policer 1m;
+            count RE_snmp;
+            accept;
+        }
+    }
+}
+filter RE_ntp {
+    term accept_ntp {
+        from {
+            source-prefix-list {
+                ext_NTP_srv;
+            }
+            destination-prefix-list {
+                int_all_hosts;
+                int_all_hosts_logical_systems;
+            }
+            protocol udp;
+            port ntp;
+        }
+        then {
+            policer 100k;
+            count RE_ntp;
+            accept;
+        }
+    }
+}
+filter RE_dns {
+    term accept_dns {
+        from {
+            source-prefix-list {
+                ext_DNS_srv;
+            }
+            destination-prefix-list {
+                int_all_hosts;
+                int_all_hosts_logical_systems;
+            }
+            protocol [ udp tcp ];
+            source-port 53;
+        }
+        then {
+            policer 100k;
+            count RE_dns;
+            accept;
+        }
+    }
+}
+filter RE_trace {
+    term accept_traceroute_udp {
+        from {
+            destination-prefix-list {
+                int_all_hosts;
+                int_all_hosts_logical_systems;
+            }
+            protocol udp;
+            ttl 1;
+            destination-port 33435-33450;
+        }
+        then {
+            policer 100k;
+            count accept_traceroute_udp;
+            accept;
+        }
+    }
+    term accept_traceroute_icmp {
+        from {
+            destination-prefix-list {
+                int_all_hosts;
+                int_all_hosts_logical_systems;
+            }
+            protocol icmp;
+            ttl 1;
+            icmp-type [ echo-request timestamp time-exceeded ];
+        }
+        then {
+            policer 100k;
+            count accept_traceroute_icmp;
+            accept;
+        }
+    }
+    term accept_traceroute_tcp {
+        from {
+            destination-prefix-list {
+                int_all_hosts;
+                int_all_hosts_logical_systems;
+            }
+            protocol tcp;
+            ttl 1;
+        }
+        then {
+            policer 100k;
+            count accept_traceroute_tcp;
+            accept;
+        }
+    }
+}
+filter RE_icmp {
+    term dis_icmp_fragments {
+        from {
+            is-fragment;
+            protocol icmp;
+        }
+        then {
+            count dis_icmp_fragments;
+            log;
+            discard;
+        }
+    }
+    term accept_noc_icmp {
+        from {
+            source-prefix-list {
+            ext_NOC_hosts;
+            int_all_hosts;
+            int_all_hosts_logical_systems;
+            }
+            protocol icmp;
+        }
+        then {
+            policer 1m;
+            count RE_noc_icmp;
+            accept;
+        }
+    }
+    term accept_icmp {
+        from {
+            protocol icmp;
+            icmp-type [ echo-reply echo-request time-exceeded unreachable source-quench
+            router-advertisement parameter-problem ];
+        }
+        then {
+            policer 100k;
+            count RE_icmp;
+            accept;
+        }
+    }
+}
+
+filter RE_common_services {
+    term accept_icmp {
+        filter RE_icmp;
+    }
+    term accept_traceroute {
+        filter RE_trace;
+    }
+    term accept_snmp {
+        filter RE_snmp;
+    }
+    term accept_ntp {
+        filter RE_ntp;
+    }
+    term accept_dns {
+        filter RE_dns;
+    }
+}
+
+##########################RE_remote_mgmt#################
+
+filter RE_ssh {
+    term accept_ssh {
+        from {
+            source-prefix-list {
+                ext_NOC_hosts;
+                int_all_hosts;
+                int_all_hosts_logical_systems;
+                ext_lo_hosts;
+            }
+            destination-prefix-list {
+                int_all_hosts;
+                int_all_hosts_logical_systems;
+            }
+            protocol tcp;
+            destination-port ssh;
+        }
+        then {
+            count accept_ssh;
+            accept;
+        }
+    }
+}
+filter RE_radius {
+    term accept_radius {
+        from {
+            source-prefix-list {
+                ext_RADIUS_srv;
+            }
+            destination-prefix-list {
+                int_all_hosts;
+                int_all_hosts_logical_systems;
+            }
+            protocol udp;
+            source-port [ radacct radius 1812 1813 ];
+        }
+        then {
+            policer 100k;
+            count RE_radius;
+            accept;
+        }
+    }
+}
+filter RE_tacacs {
+    term accept_tacacs {
+        from {
+            source-prefix-list {
+                ext_TACACS_srv;
+            }
+            destination-prefix-list {
+                int_all_hosts;
+                int_all_hosts_logical_systems;
+            }
+            protocol [ tcp udp ];
+            source-port [ tacacs tacacs-ds ];
+            tcp-established;
+        }
+        then {
+            policer 100k;
+            count RE_tacacs;
+            accept;
+        }
+    }
+}
+
+filter RE_remote_mgmt {
+    term accept_ssh {
+        filter RE_ssh;
+    }
+    term accept_radius {
+        filter RE_radius;
+    }
+    term accept_tacacs {
+        filter RE_tacacs;
+    }
+}
+
+#####################################discard filters#######################
+
+filter RE_dis_frags {
+        term 1 {
+            from {
+                first-fragment;
+            }
+            then {
+                count dis_first_frags;
+                discard;
+            }
+        }
+        term 2 {
+            from {
+                is-fragment;
+            }
+            then {
+                count dis_other_frags;
+                discard;
+            }
+        }
+}
+
+filter RE_dis_all {
+    term discard_ip_options {
+        from {
+            ip-options any;
+        }
+        then {
+            count dis_ip_options;
+            log;
+            syslog;
+            discard;
+        }
+    }
+    term discard_TTL-1_unknown {
+        from {
+            ttl 1;
+        }
+        then {
+            count dis_all_TTL-1_unknown;
+            log;
+            syslog;
+            discard;
+        }
+    }
+    term discard_tcp {
+        from {
+            protocol tcp;
+        }
+        then {
+            count dis_tcp;
+            log;
+            syslog;
+            discard;
+        }
+    }
+    term discard_netbios {
+        from {
+            protocol udp;
+            destination-port 137;
+            }
+        then {
+            count dis_netbios;
+            log;
+            syslog;
+            discard;
+        }
+    }
+    term discard_udp {
+        from {
+            protocol udp;
+        }
+        then {
+            count dis_udp;
+            log;
+            syslog;
+            discard;
+        }
+    }   
+    term discard_icmp {
+        from {
+            protocol icmp;
+        }
+        then {
+            count dis_icmp;
+            log;
+            syslog;
+            discard;
+        }
+    }
+    term discard_unknown {
+        then {
+            count dis_unknown;
+            log;
+            syslog;
+            discard;
+        }
+    }
+}
+
+################################ ipv6 ######################
+
+[edit firewall family inet6]
+filter RE_dis_ipv6 {
+    term dis_all {
+        then (
+            count RE_dis_ipv6;
+            log;
+            syslog;
+            discard;
+        )
+    }
+}
+
+################################ all-in-one filter ######################
+
+[edit interface lo0 unit 0] 
+family inet {
+    filter {
+        input-list [ RE_dis_frags RE_remote_mgmt RE_routing RE_mpls_support RE_common_servicies RE_dis_all ]
+    }
+}
+family inet6 {
+    filter input RE_dis_ipv6;
+}
+
+[edit interface lo0 unit 2]
+family inet {
+    filter {
+        input-list [ RE_dis_frags RE_icmp RE_remote_mgmt RE_dis_all ];
+    }
+}
+family inet6 {
+    filter {
+        input RE_dis_ipv6;
+    }
+}
+
+
+################################ logging ######################
+
+[edit system syslog]
+file RE_fw {
+    firewall any;
+    archive size 10m;
+}
+
+
+    
