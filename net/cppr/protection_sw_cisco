@@ -1,14 +1,13 @@
 !
 $hostname
 $operator_pass
-$domain           
+$domain
 $pref
-$mgmt_net
-$mgmt_host
+$ussi_pref
+$mac1   #или mac_arp_gw=0000.5e00.0100 
+        #последние 2 цифры - всегда 00
+$mac2
 !
-$SNMP_srv_host
-$SNMP_comm
-
 ############## выключаем&включаем ############## 
 !
 no aaa authentication login ssh local enable
@@ -59,7 +58,7 @@ logging buffered 512000
 no logging console
 !
 aaa authentication login console local
-aaa authentication login RMI group radius local
+aaa authentication login login group radius local
 !
 vtp mode transparent
 ip subnet-zero
@@ -68,35 +67,31 @@ ip domain-name $domain
 !
 vlan internal allocation policy ascending
 !
+ip classless
+ip route 0.0.0.0 0.0.0.0 $gw_ip
 !
 ############## ARP filtering ##############
 !
-ip arp inspection vlan 3-4,7,10-11,15
-ip arp inspection vlan 3-4,7,10-11,15 logging acl-match matchlog
-ip arp inspection vlan 3-4,7,10-11,15 logging arp-probe
+arp access-list ARP_vlan100
+ permit response ip host 10.1.$pref.1 any mac $mac1 0000.0000.00ff any 
+ deny response ip host 10.1.$pref.1 any mac any any log
+ permit request ip any mac any 
+ permit response ip any any mac any any 
+!
+ip arp inspection vlan 100
+ip arp inspection vlan 100 logging acl-match matchlog
+ip arp inspection vlan 100 logging arp-probe
 ip arp inspection validate ip 
 ip arp inspection log-buffer entries 10
-ip arp inspection filter ARP_vlan vlan  3 static
+ip arp inspection filter ARP_vlan100 vlan 100 static
 !
 no ip arp inspection validate ip
 errdisable recovery cause arp-inspection
 !
-arp access-list ARP_vlan
- permit response ip host $pref any mac host $mac any 
- deny response ip host $pref any mac any any log
- permit request ip any mac any 
- permit response ip any any mac any any 
-!
 ############## dhcp snooping ##############
 !
-ip dhcp snooping vlan 3-4,7,10-11,15
+ip dhcp snooping vlan 100
 ip dhcp snooping
-ip arp inspection vlan 4,10-11,15
-ip arp inspection vlan 4,10-11,15 logging acl-match matchlog
-ip arp inspection vlan 4,10-11,15 logging arp-probe
-ip arp inspection validate ip 
-ip arp inspection log-buffer entries 10
-ip arp inspection filter ARP_vlan vlan  4 static
 !
 ############## ACL's ##############
 !
@@ -105,23 +100,24 @@ no access-list 101
 !
 mac access-list extended gw_fw
     deny   0000.5e00.0100 0000.0000.00ff any
-    deny   1111.1111.0000 0000.0000.ffff any
-    deny   2222.2222.0000 0000.0000.ffff any
+    deny   $mac1 0000.0000.00ff any
+    deny   $mac2 0000.0000.00ff any
     permit any any
 !
 ip access-list extended mgmt_fw
-    permit ip $mgmt_net 0.0.0.255 any
-    permit tcp host $mgmt_host any eq 22
-    permit icmp $mgmt_net 0.0.0.255 any
-    permit icmp host $mgmt_host any
+    permit ip $noc_net 0.0.0.255 any
+    permit tcp $noc_net_int 0.0.0.255 any eq 22
+    permit tcp $noc_net_int 0.0.0.255 eq 22 host $noc_gw 
+    permit udp host $radius_srv any
+    permit icmp any any
     deny ip any 224.0.0.0 0.255.255.255
     deny ip any any log
 !
 access-list 1301 remark --ACL to SNMP--
-access-list 1301 permit $SNMP_srv_host
+access-list 1301 permit $snmp_srv
 !
-access-list 101 remark --ACL_for_CLI--
-access-list 101 permit ip host $mgmt_host any
+access-list 111 remark --ACL_for_CLI--
+access-list 111 permit ip host $noc_ip any
 !
 ############## vty ############## 
 !
@@ -130,18 +126,18 @@ line con 0
     login authentication console
 !
 line vty 0 4
-    access-class 101 in vrf-also
+    access-class 111 in vrf-also
     exec-timeout 600 0
-    login authentication RMI
+    login authentication login
     transport input ssh
 line vty 5 15
-    access-class 101 in vrf-also
+    access-class 111 in vrf-also
     transport input none
 !
 ############## snmp config ##############
 !
 no snmp-server
-snmp-server community fsonetro RO 1301
+snmp-server community $community RO 1301
 snmp-server trap link ietf
 snmp-server trap-source Vlan1031
 snmp-server system-shutdown
@@ -175,82 +171,86 @@ snmp-server enable traps syslog
 snmp-server enable traps rtr
 snmp-server enable traps vlan-membership
 snmp-server enable traps erdisable
-snmp-server host $SNMP_srv_host version 2c $SNMP_comm 
-snmp-server host $SNMP_srv_host version 2c $SNMP_comm
+snmp-server host $snmp_srv version 2c $community 
 !
 ############## interfaces ##############
 !
-interface Vlan10
+# L3 interfaces 
+interface Vlan1031
  ip access-group mgmt_fw in
  no ip redirects
  no ip unreachables
  no ip proxy-arp
 !
+# trunk to RT
 interface GigabitEthernet0/24
-    description --RT_tr--
-    switchport trunk encapsulation dot1q
-    switchport trunk allowed vlan 
-    switchport mode trunk
     switchport nonegotiate
     ip arp inspection trust
     no cdp enable
 !
+# ISP interfaces
 interface GigabitEthernet0/1
-    switchport trunk encapsulation dot1q
-    switchport trunk native vlan 3333
-    switchport trunk allowed vlan 
-    switchport mode trunk
     switchport nonegotiate
     switchport port-security maximum 10
     switchport port-security
     switchport port-security violation restrict
+    switchport port-security aging time 3
+    switchport port-security aging type inactivity
     ip arp inspection limit none
     storm-control broadcast level 10.00
     storm-control multicast level 10.00
     storm-control action trap
+    mac access-group gw_fw in
     spanning-tree portfast
     spanning-tree bpdufilter enable
 !
+# client interfaces 
+# client trunk
 interface GigabitEthernet0/28
-    switchport trunk encapsulation dot1q
     switchport trunk native vlan 3333
-    switchport trunk allowed vlan 
-    switchport mode trunk
     switchport nonegotiate
     switchport port-security maximum 100
     switchport port-security
     switchport port-security violation restrict
+    switchport port-security aging time 3
+    switchport port-security aging type inactivity
     ip arp inspection limit none
     storm-control broadcast level 5.00
     storm-control multicast level 0.10
     storm-control action trap
     no cdp enable
+    mac access-group gw_fw in
     spanning-tree portfast
     spanning-tree bpdufilter enable
 !
 interface GigabitEthernet0/3
-    switchport mode access
     switchport nonegotiate
     switchport port-security maximum 10
     switchport port-security
     switchport port-security violation restrict
+    switchport port-security aging time 3
+    switchport port-security aging type inactivity
     ip arp inspection limit none
     storm-control broadcast level 5.00
     storm-control multicast level 0.10
     storm-control action trap
+    mac access-group gw_fw in
     no cdp enable
     spanning-tree portfast
     spanning-tree bpdufilter enable
 !
-#shut interface
+#shut interfaces
 interface GigabitEthernet0/15
     switchport port-security maximum 10
     switchport port-security violation restrict
+    switchport port-security aging time 3
+    switchport port-security aging type inactivity
     ip arp inspection limit none
     storm-control broadcast level 5.00
     storm-control multicast level 0.10
     storm-control action trap
     no cdp enable
+    mac access-group gw_fw in
     spanning-tree portfast
     spanning-tree bpdufilter enable
 !

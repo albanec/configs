@@ -1,4 +1,3 @@
-# подсети & base-хосты
 $lo
 $noc_host
 !
@@ -14,7 +13,6 @@ $base_net7
 $base_net8
 $base_net9
 !
-# логические интерфейсы
 $noc_int
 $base_int1
 $base_int2
@@ -25,7 +23,6 @@ $base_int6
 $base_int7
 $base_int8
 !
-# физические транки
 $tr_int1
 $tr_int2
 $tr_int3
@@ -35,12 +32,6 @@ $tr_int6
 $tr_int7
 $tr_int8
 $tr_int9
-!
-# адреса протокольных хостов
-$NOC_host
-$NTP_srv_host
-$BGP_RR_host
-$SNMP_srv_host
 !
 ###########отключаем ненужное & включаем нужное###########
 !
@@ -78,27 +69,28 @@ ntp source lo0
 ###########элементы фильтров###############
 !
 object-group network ext_NOC_hosts
-    $NOC_host /32
+    $noc_host /32
 !
 object-group network ext_NTP_srv
-    $NTP_srv_host /32
+    $ntp_srv /32
 !
 object-group network ext_BGP_rr
 description external_BGP_reflectors
-    $BGP_RR_host /32
+    $bgp_rr /32
 !
 object-group network BASE_hosts
     $ext_lo1 /32
     $ext_lo2 /32
-    $base_net1 /24
-    $base_net2 /24
-    $base_net3 /24
-    $base_net4 /24
-    $base_net5 /24
-    $base_net6 /24
-    $base_net7 /24
-    $base_net8 /24
-    $base_net9 /24
+    $lo /32
+    $base_net1 /29
+    $base_net2 /29
+    $base_net3 /29
+    $base_net4 /29
+    $base_net5 /29
+    $base_net6 /29
+    $base_net7 /29
+    $base_net8 /29
+    $base_net9 /29
 !
 ###########ограничение на доступ###########
 !
@@ -106,7 +98,7 @@ login block-for 100 attempts 5 within 60
 login on-failure log 
 login on-success log
 !
-no snmp-server community fsonetro RO 1301
+no snmp-server community $community RO 1301
 line vty 0 4
 no access-class 101 in vrf-also
 line vty 5 15
@@ -116,13 +108,13 @@ no access-list 1301
 no access-list 101
 !
 ip access-list standard SNMP_fw
-    1 permit host $SNMP_srv_host
+    1 permit host $snmp_srv
 !
 ip access-list extended SSH_fw
     1 permit ip object-group ext_NOC_hosts any
     2 permit ip object-group BASE_hosts any
 !
-snmp-server community fsonetro RO SNMP_fw
+snmp-server community $community RO SNMP_fw
 !
 line vty 0 4
 access-class SSH_fw in vrf-also
@@ -158,8 +150,9 @@ ip access-list extended RE_snmp
 !
 ip access-list extended RE_ssh
     1 permit tcp any host $noc_host eq 22
-    2 permit tcp any host $lo eq 22
+    2 permit tcp any eq 22 host $noc_host
     3 permit tcp any object-group BASE_hosts eq 22
+    4 permit tcp object-group BASE_hosts eq 22 object-group BASE_hosts
 !
 ip access-list extended RE_ntp
     1 permit udp object-group ext_NTP_srv host $lo eq 123
@@ -210,7 +203,7 @@ ip access-list extended RE_gre
     7 permit gre any host $lo
 !
 ip access-list extended RE_radius
-    1 permit udp host 10.1.0.212 range 1812 1813 host $lo eq 1645
+    1 permit udp host $radius_srv range 1812 1813 host $lo eq 1645
 !
 ip access-list extended RE_icmp
     1 permit icmp any any echo

@@ -7,7 +7,7 @@ $vrrp_pswd
 $ext_lo1
 $ext_lo2
 !
-$NOC_host
+$noc_host
 !
 ###########отключаем ненужное & включаем нужное###########
 
@@ -29,7 +29,7 @@ set policy-options prefix-list ext_NTP_srv apply-path "system ntp server <*>"
 set policy-options prefix-list ext_SNMP_srv apply-path "snmp client-list <*> <*>"
 set policy-options prefix-list ext_SNMP_community_list apply-path "snmp community <*> clients <*>"
 set policy-options prefix-list ext_DNS_srv apply-path "system name-server <*>"
-set policy-options prefix-list ext_NOC_hosts $NOC_host/32
+set policy-options prefix-list ext_NOC_hosts $noc_host/32
 set policy-options prefix-list ext_lo_hosts $ext_lo1/32
 set policy-options prefix-list ext_lo_hosts $ext_lo2/32
 set policy-options prefix-list int_all_hosts apply-path "interfaces <*> unit <*> family inet address <*>"
@@ -217,7 +217,7 @@ set firewall family inet filter RE_ssh term accept_ssh from source-prefix-list e
 set firewall family inet filter RE_ssh term accept_ssh from destination-prefix-list int_all_hosts
 set firewall family inet filter RE_ssh term accept_ssh from destination-prefix-list int_all_hosts_logical_systems
 set firewall family inet filter RE_ssh term accept_ssh from protocol tcp
-set firewall family inet filter RE_ssh term accept_ssh from destination-port ssh
+set firewall family inet filter RE_ssh term accept_ssh from port ssh
 set firewall family inet filter RE_ssh term accept_ssh then count accept_ssh
 set firewall family inet filter RE_ssh term accept_ssh then accept
 

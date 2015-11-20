@@ -7,8 +7,6 @@ $vrrp_pswd
 $ext_lo1
 $ext_lo2
 !
-$NOC_host
-
 ###########отключаем ненужное & включаем нужное###########
 
 [edit system]
@@ -89,7 +87,7 @@ prefix-list int_lo0_hosts_logical_systems {
     apply-path "logical-systems <*> interfaces lo0 unit <*> family inet address <*>";
 }
 prefix-list ext_NOC_hosts {
-    $NOC_host/32;
+    $noc_host/32;
 }
 
 prefix-list ext_NOC_hosts {
@@ -474,7 +472,7 @@ filter RE_ssh {
                 int_all_hosts_logical_systems;
             }
             protocol tcp;
-            destination-port ssh;
+            port ssh;
         }
         then {
             count accept_ssh;
