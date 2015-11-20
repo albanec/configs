@@ -86,10 +86,7 @@ no access-list 1301
 no access-list 101
 !
 ip access-list standard SNMP_fw
-    1 permit host 10.1.0.204
-    2 permit host 10.1.0.205
-    3 permit host 10.1.0.211
-    4 permit host 10.30.1.144
+    1 permit host $snmp_srv
 !
 ip access-list extended SSH_fw
     1 permit ip object-group ext_NOC_hosts any
