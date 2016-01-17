@@ -1,5 +1,5 @@
 # ставим утилиты & проверка установки
-apt-get install lxc lxctl lxc-templates bridge-utils
+apt-get install lxc bridge-utils
 lxc-checkconfig
 
 1. Создание контейнера
