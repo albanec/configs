@@ -1,0 +1,4 @@
+	// "assignment" operator -- Uses the same shortcut as RStudio
+   {"keys": ["alt+ctrl+,"], "command": "insert", "args": {"characters": "<-"}},
+  // magrittr's "pipe-forward" operator -- same as RStudio
+  {"keys": ["alt+ctrl+."], "command": "insert", "args": {"characters": "%>%"}},
