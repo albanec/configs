@@ -20,7 +20,7 @@ apt-cache policy docker-engine
 sudo apt-get install -y docker-engine
 # проверка демона
 sudo systemctl status docker
-docker info
+sudo docker info
 #
 ## 1.2 Установка docker-machine
 ## установка
@@ -51,7 +51,7 @@ rm /usr/local/bin/docker-compose
 ## 1.4 Установка & запуск Weave Scope 
 sudo curl -L git.io/scope -o /usr/local/bin/scope
 sudo chmod a+x /usr/local/bin/scope
-scope launch
+sudo scope launch
 #
 ## 1.5 Установка & запуск cAdvisor 
 sudo docker run \
@@ -69,9 +69,9 @@ sudo docker run \
 #
 ## 2.1 Создание окружения
 # создание VirtualBox VM с установленными внутри нее CoreOS и Docker
-docker-machine create -d virtualbox newEnv
+sudo docker-machine create -d virtualbox newEnv
 # проверка статуса
-docker-machine ls
+sudo docker-machine ls
   # должно быть что-то вроде
   # NAME      ACTIVE   DRIVER       STATE     URL                         SWARM
   # new_env            virtualbox   Running   tcp://192.168.99.101:2376

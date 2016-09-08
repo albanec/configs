@@ -1,0 +1,4 @@
+
+sudo dpkg-reconfigure virtualbox-dkms 
+sudo modprobe vboxdrv
+sudo rcvboxdrv setup
