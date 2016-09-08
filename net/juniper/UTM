@@ -1,0 +1,276 @@
+UTM
+
+show security utm sessions 
+show security utm status
+>test security utm anti-spam profile %name% test-string %address%
+show security utm anti-spam statistics
+show security utm anti-spam status
+show log messages | match antispam
+
+1. conf anti-spam (custom object -> feature-profile -> utm-policy -> apply it to secure-policy) 
+
+[edit security utm]
+
+custom-objects {
+	url-pattern {
+		%white-name% {
+			value %ip|url%;
+		}
+		%black-name% {
+			value %ip|url%;
+		}
+}}
+feature-profile {
+	anti-spam {
+		address-whitelist %white-name%;
+		address-blacklist %black-name%;
+		sbl {
+			profile %profile-name% {
+				sbl-default-sevrev | no-..;
+				spam-action block | ...;
+}}}}
+
+utm-policy %profile-name% {
+	anti-spam {
+		smtp-profile %name%;
+}
+	anti-virus {
+		http-profile %%;
+		ftp {
+			download-profile %%;}
+}}
+	
+[edit security policies from-zone....]
+
+then {
+	permit {
+		application-services {
+			utm-policy %name%;
+}}}
+
+
+###!!!!!! для сервера не забыть прописать DNS:
+
+[edit system]
+
+name-server {
+	%public-DNS-ip%;
+}
+
+2. #по default intellegent prescreening включен
+
+[edt security utm] 
+
+feature-profile {
+	anti-virus {
+		...}}
+
+3. Antivirus
+
+[edit security utm]
+
+custom-objects {
+	custom-url-category {
+		name %white-list%;
+		value %pattern-list%;
+	}
+	url-pattern {
+		name %pattern-list%;
+		value %http://...%;
+	}
+	mime-pattern {
+		%mime-list% {
+			value %video/%;
+		}
+		%exception_1% {
+			value %video/x-shockwave-flash%;
+		}
+	filename-extension {
+		%Ext1% {
+			value %XSLT%;
+		}
+	}		
+}
+
+feature-profile {
+	anti-virus {
+		type kasp | jun
+		url-white-list %white-list%;
+		mime-whitelist {
+			list %mime-list%;
+			exception %Ext1%;
+		}
+		kaspersky-lab-engine {
+			profile %av-profile% {
+				scan-options {
+					scan-extension %Ext1%;
+}}}}}
+
+3. update сигнатур
+
+[edit security utm feature-profile]
+
+anti-virus {
+	kaspersky-engine | juniper-express-engine {
+		pattern-update {
+			url %update-path%;
+			interval %minutes%;  # default=60
+}}}
+
+ручками:
+
+> request security utm anti-virus kaspersky|juniper pattern-update
+> show security utm anti-virus status 
+
+4. fallback  и notifications
+
+[edit security utm anti-virus]
+
+profile %% {
+	fallabck-options {
+	......;
+	}
+	notification-options {
+		virus-detection {
+			type {protocol-only | message};
+			custom-message %%;
+}}}
+
+> show security utm anti-virus status
+> show system license
+
+Content-filtering
+
+1. content-filtering
+
+[edit security utm]
+custom-object {
+	mime-pattern {}
+	filename-extention {}
+	protocol-command {}
+}
+feature-profile {
+	content-filtering {
+		profile %cf-profile% {
+			block-content-type {}
+			permit-command %%;
+			block-command %%;
+			block-extention %%;
+			block-mime {
+				list %%;
+				exception %%;
+			}
+		block-content-type {}
+		notification-options {
+			type {protocol-only | message}
+			not-| notify-mail-sender;
+			custom-message %string%;
+		}
+}}}
+
+utm-policy {
+	content-filtering {
+		http-ptofile %cf%;
+		ftp {
+			upload-profile %%;
+			download-profile %%;
+		}
+		smtp-profile %%;
+		imap-profile %%;
+		pop3-profile %%;
+	}
+}
+
+
+> show log-messages | match content-filtering
+> show security utm content-filtering statistics
+
+WEB-filtering (SurfControl | Websense | Local-list)
+
+1. SurfControl
+
+[edit security utm feature-profile]
+
+web-filtering {
+	type surf-control-..;
+	surf-control-integrated {
+		cache {size};
+		server {
+			host %ip%;
+			port %%;
+		}
+		profile %name% {
+			category {..}
+			default %%;
+			custom-block-message %%;
+			fallback-settings {
+				default %%;
+				server-connectivity %%;
+				timeout %%;
+				too-many-requests %%;
+			}
+			timeout %%;
+}}}
+
+2. Websense
+
+[edit security utm feature-profile]
+
+web-filtering {
+	type websense-redirect;
+	websense-redirect {
+		profile %% {
+			server {
+				host %%;
+				port %%;
+			}
+			custom-block-message %%;
+			fallback-settings {..}
+			timeout %%;
+			socket %%;
+			account %%;
+}}}
+
+3. Local-base
+
+[edit security utm custom-objects]
+
+url-pattern {
+	%whitelist% {};
+	%blacklist% {};
+}
+custom-url-category {
+	%good% {
+		value %whitelist%;
+	}
+	%bad% {
+		value %blacklist%;
+	}
+}
+feature-profile {
+	web-filtering {
+		url-whitelist %good%;
+		url-blacklist %bad%;
+		type juniper-local;
+		jun-local {
+			profile %profile% {
+				default {..};
+				custom-block-message %%;
+				fallback-options {..};
+				timeout %%;
+			}
+		}
+	}
+}
+
+[edit security utm]
+
+utm-policy %% {
+	web-filtering {
+		http-profile %%;
+	}
+}
+
+> show group junos-defaults security utm feature-profile web-filtering
+> show log-messages | match WEBFILTER
+> show security utm web-filtering statistics

@@ -1,0 +1,723 @@
+--bypass statefull файрвола
+
+[edit firewall filter %% term 1]
+then packet-mode;
+
+--config свич порта
+
+[edit interfaces ge-%% unit 0]
+family ethernet-switching {
+	port-mode trunk|access;
+	vlan {
+		%%;
+	}
+}
+[edit interfaces vlan unit 0]
+[edit interfaces vlans]
+%% {
+	vlan-id %%;
+	l3-interface vlan.0;
+	}
+
+>show ethwrnet-switching interfaces
+>show ethernet-switching table
+
+
+2. ALG
+
+>show groups junos-defaults security alg
+>show security alg status
+>show security alg configuration
+>show security policies detail
+
+--глобальная настройка 
+[edit security alg]
+
+--привязка alg к custom-приложению
+[edit applications application %%]
+application-protocol ftp;
+
+--persistent NAT--------------------------
+
+>show security nat source persistent-nat-table all
+
+	--source NAT----------------------
+[edit security nat]
+source {
+	pool %pool% {
+		address {
+			%%;
+		}
+	}
+	rule-set %% {
+		from zone %%;
+		to zone %%;
+		rule %% {
+			match {
+				source-address %ip%;
+				destination-address %ip%;
+			}
+			then {
+				source-nat {
+					pool {
+						%pool%;
+						persistant-nat {
+							permit %target-host%;
+							inactivity-timeout %sec%;
+}}}}}}}
+
+	--interface NAT--------------------
+[edit security nat]
+source {
+	pool %pool% {
+		address {
+			%%;
+		}
+	}
+	interface {
+		port-overloading off;
+	} 
+	rule-set %% {
+		from zone %%;
+		to zone %%;
+		rule %% {
+			match {
+				source-address %ip%;
+				destination-address %ip%;
+			}
+			then {
+				source-nat {
+					interface {
+						persistant-nat {
+							permit %target-host%;
+							inactivity-timeout %sec%;
+}}}}}}}
+
+--double NAT
+
+
+3. HA clustering
+
+--LAG reth
+>show interfaces terse | match reth
+
+[edit interfaces]
+ge-1/0/1 {
+	gigether-options {
+		redundant-parent reth1;
+	}
+}
+reth1 {
+	redundant-ether-options {
+		redundancy-group 1;
+		minimum-links 3;
+	unit 0 {
+		family inet {
+}}}}
+
+--устранение асимметрии
+[edit chassis cluster redundancy-group 1]
+# set preempt
+
+4. IP-SEC
+
+--PKI------------
+рекомендация RFC3280
+сертификаты X.509 (поддержтваются вендоры Entrust, Verisign, Microsoft и др. но будут недоверенными)
+возможна работа по SCEP (PKCS10 req / PKCS7 resp)
+
+
+--vpn monitoring--------------------------------------
+[edit security ike gateway %name%]
+dead-peer-detection {
+	always-send;	#слать вне зависимости от трафика
+	interval %sec%;
+	threshold %%;
+	}
+vpn-monitor {
+	optimized;
+	source-interface;
+	destination;
+	}
+[edit security ipsec vpn-monitor-options]
+interval %%;
+threshold %%;
+
+--создание профиля CA---------------------------------
+[edit security pki]
+ca-profile %name% {
+	ca-identity %domain-name%;
+	administrator email-address {
+		%mail%;
+	}	
+	revocation-check crl {
+		refresh-interval 48;
+		url %http://%;
+	}
+}
+
+--генерация локального сертификата--------------------
+>request security pki generate-key-pair certificate-id %cert_name%
+>show security pki local-certificate
+
+--генерация и подпись сертификата через CA---------------
+>request security pki generate-certificate-request certificate-id %id% 
+subject "CN=,OU=,O=,L=,ST=,C=,CN=,DC=" domain-name %name% | ip-address %% | email %% filename %%
+>show security pki certificate-request certificate-id %id%
+--загрузка сертификата-----------------------------------
+>file copy ftp://%ip/file% %file%
+>request security pki local-certificate load  certificate-id %% filename %file%
+>request security pki ca-certificate load  ca-profile %% filename %file%
+>request security pki crl load ca-profile %% filename %file%
+
+--использование сертификатов в IKE-----------------------
+[edit security]
+ike {
+	proposal %ike_name% {
+		authentication-method rsa-signatures;
+		dh-group group2;
+		authentication-algorithm sha1;
+		encryption-algorithm 3des-cbc;
+		}
+	policy %pol_name% {
+		mode main;	#если статический ip; если динамика, то aggressive
+		proposals %ike_name%;
+		certificate {
+			local-certificate %cert_name%;
+			trusted-ca use-all;
+			peer-certificate-type x509-signature;
+		}
+	}
+	gateway ike-gate {
+		ike-policy %pol_name%;
+		dynamic user-at-hostname "remote_IKE_ID";
+		external-interface %%;
+		}
+}
+
+--HUB-AND-SPOKE vpn---------------------------------------
+ строится на route-based туннелях
+ агрегация туннелей или на отдельных st0 интерфейсах, либо на одном st0 с помощью NHTB
+> show security ipsec next-hop-tunnels
+ 
+ -------spoke config---------------------------------------
+[edit routing-options static]
+route %% next-hop st0.0
+[edit security ike]
+	gateway %% {
+		address %%;	#loop хаба
+	}
+[edit security vpn %%]
+bind-interface st0.0
+establish-tunnels immediately;
+
+-------hub config------------------------------------------
+[edit interfaces st0.0]
+multipoint; 
+family inet {
+	address %%;
+	#если ответное железо не jun, то прописать туннели (NHTB):
+	next-hop-tunnel %remote_st0_add% ipsec-vpn %vpn_name%;
+}
+#не забыть роутинг для трафика:
+[edit routing-options static]
+route %% next-hop %remote_st0_add%;
+
+5. ADV IPSEC technologies
+
+--Group VPN-----------
+  работает на brunch девайсах и J роутерах
+  поддерживается на кластерах только в последних версиях junos
+  работает только в inet.0
+  route-based не поддерживается
+  необходим публичный адрес
+
+> show security group-vpn server ike | ipsec | kek security-associations
+> show security group-vpn member ike | ipsec | kek security-associations
+> show security dynamic-policies
+
+ --key-server config----------
+#для управления ключами и простройки туннелей
+[edit security group-vpn server]
+ike {
+	proposal %prop_name% {
+		authentication-method pre-shared-keys;
+		dh-group group2;
+		authentication-algorithm sha1;
+		encryption-algorithm 3des-cbc;
+	}
+	policy %pol_name% {
+		mode main;
+		proposals %prop_name%;
+		pre-shared-key ascii-text "";
+	}
+	gateway %gate1_name% {
+		ike-policy %pol_name%;
+		address %peer1_ip%;
+	}
+}
+ipsec {
+	proposal %ipsec_name%{
+		authentication-algorithm hmac-sha1-96;
+		encryption-algorithm 3des-cbc;
+		lifetime-seconds 3600;
+		}
+}
+group {
+	%group_name% {
+		group-id 1;
+		ike-gateway %gate1_name%;
+		ike-gateway %gate2_name%;
+		anti-replay-time-window 100;
+		server-address %ip%;
+		server-member-communication {
+			communication-type unicast;
+			retransmission-period 30;
+			number-of-retransmission 3;
+			encryption-algorithm aes-256-cbc;
+			sig-hash-algorithm sha1;
+		}
+		
+	}
+}
+#добавить политику для отбора нужного трафика (TEK) - отсылается 
+каждому пиру и определяет, что будет шифроваться внутри группы
+ipsec-sa group-sa {
+	proposal %ipsec_name%;
+	match-policy %dyn1% {
+		source %%;
+		dest %%;
+		source-port %%;
+		dest-port %%;
+		protocol %%;
+	}
+}
+
+--group-member config-------------------------------------
+ 
+[edit security group-vpn member]
+ike {
+	proposal %prop_name% {
+	authentication-method pre-shared-keys;
+	dh-group group2;
+	authentication-algorithm sha1;
+	encryption-algorithm 3des-cbc;
+	}
+	policy %poll_name% {
+	mode main;
+	proposals %prop_name%;
+	pre-shared-key "";
+	}
+	gateway %gate_name% {
+	ike-policy %pol_name%;
+	address %remote_ip%;
+	local-address %ip%;
+	}
+}
+vpn %vpn_name% {
+	ike-gateway %gate_name%;
+	group-vpn-external-interface lo0.0;
+	group 1;
+}
+[edit security policies]
+from zone %% to zone %% {
+	policy %% {
+		then {
+			permit {
+				tunnel {
+				ipsec-group-vpn vpn1;
+				}
+			}
+		}
+	}
+}
+
+--иерархическая структура
+[edit security group-vpn co-location]
+no-anti-reply;
+
+--DYNAMIC VPN------------------
+
+> show security dynamic-vpn users
+> show security ike active-peer 
+> show security dynamic-vpn client version
+> show system license usage
+
+----server config--------------
+
+#разрешить https глабально и в зонах
+[edit system services web-management]
+https {
+	system-generated-certificate;
+}
+#настройка XAUTH на сервере
+[edit access]
+address-assignmet {
+	pool %% {
+		family inet {
+			network %prefix%;
+			range %% {
+				low %ip%;
+				hight %ip%;
+			}
+			xauth-attributes {
+				primary-dns %ip%;
+			}
+		}
+	}
+}
+profile %xauth_prof% {
+	client %user1_name% {
+		firewall-user {
+			password "";
+		}
+	}
+}
+firewall-authentication {
+	web-authentication {
+		default-profile %xauth_prof%;
+	}
+}   
+#создать proxy-arp
+[edit security nat]
+proxy-arp {
+	interface %% {
+		address {
+			%% to %%;
+		}
+	}
+}
+#vpn сервер
+[edit security ike]
+policy %pol_name% {
+	mode aggressive;
+	proposal-set standard;
+	pre-shared-key ascii-text "";
+}
+gateway %gate_name% {
+	ike-policy %pol_name%;
+	dynamic {
+		hostname %%;
+		connections-limit %%;
+		ike-user-type group-ike-id;
+	}
+	external-interface %%;
+	xauth access-profile %xauth_prof%;
+}
+
+[edit security ipsec]
+policy %pol_name% {
+	proposal-set standard;
+}
+vpn %vpn_name% {
+	ike {
+		gateway %gate_name%;
+		ipsec-policy %pol_name%;
+	}
+}
+
+[edit security dynamic-vpn]
+access-profile %xauth_prof%;
+clients {
+	all {
+		remote-protected-resources {
+			%ip%;
+		}
+		remote-exceptions {
+		0.0.0.0/0;
+		}
+		ipsec-vpn %vpn_name%;
+		user {
+			%user1_name%;
+			%user2_name%;
+			%...%;
+		}
+	}
+}
+
+[edit polices]
+from-zone %% to-zone %% {
+	policy %% {
+		then {
+			permit {
+				tunnel {
+					ipsec-vpn %vpn_name%;
+				}
+			}
+		}
+	}
+}
+
+#возможно использовать RADIUS
+[edit access]
+profile %radius_name% {
+	authentication-order radius;
+	radius-server {
+		%ip% secret "";
+	}
+}
+firewall-authentication {
+	web-authentication {
+		default-propfile %radius_name%;
+	}
+}
+
+
+7. ADV VPN use-cases
+
+--routing over VPNs------------------------------
+
+----OSPF over GRE over IPSEC-----------------------------
+[edit interfaces]
+st0 {
+	unit 0 {
+		family inet {
+			address %st0_ip%;
+		}
+	}
+}
+gr-0/0/0 {
+	unit 0 {
+		tunnel {
+			source %st0_ip%;
+			destination %remote_st0_ip%;
+		}
+		family inet {
+		}
+	}
+}
+
+#прописать ospf, внести gr-0/0/0.0 в зону и ospf, разрешить ospf трафик в зоне; 
+
+--IPSEC с повторяющийся на сайтах адресацией-------
+решается через статик nat и дефолтные статик роуты через туннель
+
+--dynamic IKE gates-------
+[edit security ike]
+policy %% {
+	mode aggressive;
+}
+gateway %% {
+	ike-policy %% {
+		address %peer_ip%;
+		local-identity hostname "domain.name";
+		external-interface %%;
+	}
+}
+#сосед
+[edit security ike]
+policy %% {
+	mode aggressive;
+}
+gateway %% {
+	dynamic hostname "peer.domain.name";
+}
+
+--deployment ticks&tricks
+#для eth сетей с MTU>=1500bytes рекомендуется tcp-mss>=1350bytes (по умолчанию - 1320)
+[edit security flow]
+tcp-mss {
+	ipsec-vpn {
+		mss 1350;
+	}
+}
+
+8.  TSHOUT
+
+% software errors
+
+>show version detail
+>show system software detail 
+>file list /var/sw/pkg detail | match rollback
+
+% syslog
+
+>show log messages
+>monitor start messages
+
+файлы логов по умолчанию:
+ ipsec /var/log/kmd
+ cluster /var/log/jsrpd
+ utm /var/log/utmd
+ idp /var/log/idpd
+
+#настройка трапов на сервер
+[edit system syslog]
+user * {
+	any emergency;
+}
+host %% {
+	security notice;
+	match %%;
+	source-address %%;
+}
+file %% {
+	any any;
+	structured-data;
+}
+#для hi-end девайсов логи по умолчанию не включены
+[edit security log]
+mode event;
+event-rate 1000;
+format sd-syslog;
+source-address %%;
+stream-collector %name1% {
+	host {
+		%%;
+		port %%;
+	}
+}
+#отправка трейсов на сервер
+[edit system tracing]
+destination-override syslog host %%;
+#отправка flow-table на сервер
+[edit security flow]
+traceoptions {
+	file %%;
+	flag basic-datapath;
+	packet-filter %name1% {
+		...
+	}
+}
+#захват, логирование и отправка на сервер трафика
+[edit forwarding-options]
+packet-capture {
+	file %%;
+	maximum-capture-size 1500;
+}
+[edit firewall filter %%]
+term %% {
+	then {
+		sample;
+		accept;
+	}
+}
+
+% running processes
+
+>show system processes
+>show system connections
+>file show /etc/services
+
+% состав ядра
+
+>show system core-dumps
+>file list /var/tmp/*core*
+file list /var/crash/*core*
+
+
+9. APP-ID
+
+--посмотреть лог статистики AI по приложениям
+>show service application-id statistics application
+
+--вкл app в зоне
+#set security zones security-zone %% app-tracking
+
+--вкл логирование
+
+[edit security log]
+mode stream;
+format sd-syslog;
+stream %% {
+	host {
+		%%;
+	}
+}
+
+--опции AI-трекинга (app-tracking только трекает, для фильтрации нужен AppFW)
+
+[edit security app-tracking]
+first-update;
+session-update-interval 5;
+
+--AppFW (полностью поддерживается начиная с 12.1х44)
+
+rulesets - набор присетов и действий, три типа (отличается default acton):
+  ^blacklist:
+[edit security app-fw]
+rule-sets %% {
+	rule 1 {
+		match {}
+		then {}
+	}
+	default-rule permit;
+}
+
+применить в sec_policy:
+then {
+	permit;
+	app-services {
+		app-fw {
+			rule-set %%;
+		}
+	}
+}
+
+  ^whitelist:
+[edit security app-fw rule-sets %%]
+default-rule deny;
+
+  ^hybrid:
+[edit security app-fw rule-sets %%]
+default-rule reject; 
+
+% AppSecure
+
+загрузить/установка idp пакета 
+> request security idp security-package download
+> request security idp security-package download status
+> request security idp security-package install
+
+установка/обновление базы
+> request services application-identification download
+> request services application-identification download status
+> request services application-identification install
+> request services application-identification install status
+
+-- AppID кеш
+выключить
+# set services application-identification no-application-system-cache
+включить для вложенных приложений
+# set services application-identification nested-application-settings no-application-system-cache 
+изменить таймаут
+# set services application-identification application-system-cache-timeout 600
+
+--эвристический движок
+подключить
+# set services application-identification enable-heuristics
+
+--работа с сигнатурами (сторятся в отдельной базе после JunOS 11.4)
+> show services application-identification application summary
+> show services application-identification group summary
+> show services application-identification group detail junos:web:multimedia
+
+выключить/включить сигнатуру
+> request services application-identification application disable%%enable%% junos:TWITTER-SSL
+выключить/включить группу сигнатур
+> request services application-identification group disable%%enable%% junos:messaging
+создать новую сигнатуру
+# show services application-identification
+application Override-192.168.1.2:TCP80 {
+address-mapping Override {
+	destination {
+		ip 192.168.1.2/32;
+		port-range {
+			tcp 80;
+		}
+	}
+	order 1500;
+}
+}
+
+создать новую группу сигнатур
+# show services application-identification
+application-group Web-and-Games {
+	application-groups {
+		junos:gaming;
+		junos:web;
+	}
+	applications {
+		junos:BITTORRENT-UDP;
+	}
+}

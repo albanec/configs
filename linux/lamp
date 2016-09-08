@@ -1,0 +1,55 @@
+
+#установка MySQL
+apt-get install mysql-server mysql-client mysql-common
+
+##установка nginx
+#Добавим репозиторий nginx
+nano /etc/apt/sources.list
+#добавить строки
+deb http://nginx.org/packages/ubuntu/ #OS_version# nginx
+deb-src http://nginx.org/packages/ubuntu/ #OS_version# nginx
+#скачать и установить GPG-ключ
+wget http://nginx.org/keys/nginx_signing.key
+apt-key add nginx_signing.key
+#установка nginx
+apt-get update
+apt-get install nginx
+
+##установка php-fpm
+#установка
+apt-get install php5-cli php5-common php5-mysql php5-gd php5-fpm php5-cgi php5-fpm php-pear php5-mcrypt -y
+#устранить уязвимость
+nano /etc/php5/fpm/php.ini
+#изменить строку ;cgi.fix_pathinfo = 1 на ;cgi.fix_pathinfo = 0
+service php5-fpm restart
+
+#настройка /etc/nginx/nginx.conf
+#увеличить количество процессов, указать папки, в которых лежат виртуальные хосты
+
+#создать папки для будующих проектов
+#настройка дефолтного виртуального хоста 
+
+#перенаправить php на сокет
+nano /etc/php5/fpm/pool.d/www.conf
+
+#изменить listen = 127.0.0.1:9000 на /var/run/php5-fpm.sock
+/etc/init.d/nginx restart
+/etc/init.d/php5-fpm restart
+
+#тестовый скрипт
+nano /usr/share/nginx/html/index.php
+
+<?php
+        phpinfo();
+?> 
+
+##mysql
+apt-get install mysql-server mysql-client mysql-common
+apt-get install memcached php5-memcached
+/etc/init.d/php5-fpm restart
+##phpmyadmin
+apt-get install phpmyadmin
+
+/etc/init.d/nginx restart
+/etc/init.d/php5-fpm restart
+

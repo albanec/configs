@@ -1,0 +1,713 @@
+﻿ Security Policies
+
+
+
+1. schedulers
+
+set schedulers scheduler %name [day_of_week | daily] [specifics_of_time]
+
+apply в [edit security policies]
+
+2. policy-rematch - дергает сессии при изменении policy
+
+3. full config зон и policy
+
+[edit security zones security-zone HR]
+
+address-book {
+
+	address %name1% %ip_add1%;
+	address %name2% %ip_add2%;
+
+address-set %name% {				%вероятно, просто дублирует, уточнить!%
+
+	address %name1%;
+	address %name1%;
+	}
+}
+
+interfaces {
+	ge-1/0/0;
+}
+
+[edit applications]
+
+application HR-telnet {
+
+	protocol tcp;
+	source-port 1024-65535;
+	destination-port telnet;
+
+}
+
+application-set publ_app {
+
+	application junos-ftp;
+	application junos-ike;
+	application junos-ftp;  
+}
+
+[edit security policies]
+
+from-zone HR to-zone Public {
+
+	policy HR_to_Public {
+
+		match {
+			source-address HR_PCs;
+			destination-address address-Public;
+			application HR-Public-applications;
+		}
+		
+		then {
+
+			permit;
+			log {
+			
+				session-init;
+				session-close;
+			}
+		count;
+}
+
+
+scheduler-name schedulerHR;
+
+}
+
+	policy otherHR_to_Public {
+
+	match {
+		sourse-address all-10-1;
+		destination-adress all-1-1-70;
+		application junos-ftp;
+}
+	then {
+		deny;
+		log {
+			session-init;
+	}
+	`	count;
+}
+}
+}
+
+[edit schedulers]
+
+scheduler schedulerHR {
+		daily {
+			start-time 09^00^00 stop-time n;n;n;n;
+	}
+		sunday exclude;
+		saturday exclude;
+}
+
+
+4. monitoring
+
+show security policies detail
+
+
+
+AAA
+
+1. настройка профиля доступа
+
+[edit access]
+profile %name% {
+	
+client %name% {
+	cleint-group [gr_name1 gr-name2];
+	firewall-user {
+	password %pass%;
+		}
+	session-options client-idle-timeout %min%;
+}
+}
+
+[edit access firewall-autentification]
+
+pass-through {
+	default-profile %name%;
+	telnet {
+		banner {
+			success "";
+}
+}
+}
+
+[edit security policies]
+
+from-zone %% to-zone %% {
+	policy permit-all {
+		match {
+		source-address %add_book%;
+		distination-add %%add_book;
+		application %app_name%;
+}
+		then{
+			permit {
+				firewall-autentification {
+					pass-through {
+						client-match %name%;  #or %cleint-group-name%
+						web-redirect;
+}}}}}}
+
+2. web-access
+
+[edit systems services]
+web-menagement {
+	http;
+}
+
+[edit interfaces ge-1/1/1]
+unit 0 {
+	family inet {
+		address 1.1.1.1.1 {
+			web-authentic http;
+}}}
+ 
+[edit access firewall-autentification]
+
+web-authentic {
+		default-profile %name%;
+			banner {
+			success "";
+}
+
+[edit security policies]
+
+from-zone %% to-zone %% {
+	policy permit-all {
+		match {
+		source-address %add_book%;
+		distination-add %%add_book;
+		application %app_name%;
+}
+		then{
+			permit {
+				firewall-autentification {
+					web-authentic {
+						client-match %name%;
+}}}}}}
+
+
+3. default group
+
+[edit access]
+
+profile %% {
+	session-options {
+		client-group [];
+}
+	authentication-order [radius password];
+	radius-server {
+		ip-add secret radius-secret; #что это?
+}}
+
+4. monitoring
+
+show security firewall-authentic users
+show security firewall-authentic history
+
+
+SCREEN options
+
+show security flow session summary
+1. анализ трафика через сеть
+
+[edit security screen]
+
+lds-option %lds_opt_name% {
+	alarm-without-drop;
+}
+
+
+
+reconnaissance (разведка) 
+
+2. IP sweep attack
+
+[edit security screen]
+
+lds-option %lds_opt_name% {
+	icmp {
+		ip-sweep threshold %time%;
+}
+}
+
+3. port-scan attack
+
+[edit security screen]
+
+lds-option %lds_opt_name% {
+	tcp {
+		port-scan threshold %time%;
+}
+} 
+
+3. ip-option & spoofing attacks 
+
+[edit security screen]
+
+lds-option %lds_opt_name% {
+	ip {
+		spoofing;
+		record-route-option;
+		timestamp option;
+		security-option;
+		stream-oprion;
+}
+}
+
+4. OS-type attack
+
+[edit security screen]
+
+lds-option %lds_opt_name% {
+	tcp {
+		syn-fin;
+		fin-no-ack;
+		tcp-no-flag;
+}
+}
+
+5. IP router attack  (loose sourse route option)
+
+[edit security screen]
+
+lds-option %lds_opt_name% {
+	ip {
+		source-route-option;		# for block
+		loose-source-route-option;	#for detection
+		strict-sourse-route-option;	#for detection
+}
+}
+
+DDos'ы
+
+6. DDoS
+
+[edit security screen]
+
+ids-option %name% {
+	limit-session {
+		sourse-session	{
+			sourse-ip-based %number%;
+			destination-ip-based %number%;
+}}}
+
+7. SYN-ACK-ACK (количество tcp сессий)
+
+[edit security screen]
+
+ids-option %name% {
+	tcp {
+		syn-ack-ack-proxy threshold %number-of-connections%;
+}}
+
+8. SYN-flooding
+
+[edit security screen]
+
+ids-option %name% {
+	tcp {
+		syn-flood {
+			alarm-threshold %number-tcp-connection-per-second%;
+			attack-threshold %number-SYN-message-per-second-to-dest-socket%;
+			source-threshold %number-SYN-message-from-source-ip-per-second%;
+			destination threshold %number-SYN-message-per-second-to-dest-ip%;
+			timeout %second_in_queue%;
+}}}
+
+9. SYN-cookies
+
+[edit security]
+
+	flow {
+		syn flood protection mode syn cookie;
+}}
+
+10. ICMP flooding
+
+[edit security screen]
+
+ids-option %name% {
+	icmp {
+		flood-threshold %packet_per_second%;
+}
+	udp {
+		flood-threshold %packet_per_second%;
+}
+}
+
+11. LAND-attack
+
+ [edit security]
+
+	ids-option %name% {
+	tcp {
+		land;
+}}
+
+12. OS
+
+[edit security]
+
+	ids-option %name% {
+	icmp {
+		ping-death;
+}
+	tcp {
+		winuke;
+}
+	ip {
+		tear-drop;
+}}
+
+
+suspicious (подозрительные)
+
+13. ICMP
+
+[edit security]
+
+	ids-option %name% {
+	icmp {
+		fragment;
+		large;
+}}
+
+14. [edit security screen]
+
+lds-option %lds_opt_name% {
+	ip {
+		blog-frag;
+		bad-option;
+		unknow-protocol;
+}
+	tcp {
+		syn-flag;
+}}
+
+15. applying
+
+[edit security zones]
+
+security-zone	%name% {
+
+	screen	%ids-opt-name%;
+}
+
+
+
+
+show security screen statistic zone
+show security screen ids-option
+
+16. trceoptions
+
+[edit security screen]
+
+	traceoptions {
+		file {
+			%filename%;
+			files %number-of-tracefiles%;
+			size %%;
+	}
+		flag configuration | flow | all;
+}
+
+
+
+
+NAT
+
+show security flow session
+show security nat source summary
+show security nat destination rule all
+show security nat destination pool
+
+
+1. Interface source NAT 
+
+[edit security nat source]
+
+rule-set %% {
+	from %inter, routing-inst, zone, etc%;
+	to %%;
+	rule %% {
+		match {
+			%%;
+}
+		then {
+			source-nat interface;
+}}}
+
+2. pool-based source NAT whis PAT
+
+[edit security nat source]
+
+source {
+	address-persistent; # закрепляет порт за адресом
+}
+pool %% {
+	address {
+		%ip/pref%;
+	}
+}
+rule-set %% {
+	from %%;
+	to %%;
+	rule %% {
+		match {
+			%%;
+}
+		then {
+			source-nat pool %%;
+}}}
+
+
+3. pool-based source NAT whithout PAT
+
+[edit security nat source]
+
+pool %% {
+	address {
+		%ip/pref1% to %ip/pref2%;
+	}
+	port no-translation;
+	overflow-pool interface;
+}
+
+4. address shufting
+
+[edit security nat source]
+
+pool %% {
+	address {
+		%ip/pref1% to %ip/pref2%;
+	}
+	host-address-base %private-add%;
+}
+
+5. NAT off (выкл префиксы из nat)
+
+[edit security nat source rule-set %%]
+
+rule %% {
+	match { 
+		%%;
+}
+	then {
+		source-nat off;
+}}
+
+6. dest NAT whith no port-trans
+
+[edit security nat destination]
+
+pool %% {
+	address {
+		%ip/pref1% to %ip/pref2%;
+	}
+}
+rule-set %% {
+	from %%;
+	rule %% {
+		match {
+			%%;
+}
+		then {
+			destination-nat pool %%;
+}}}
+
+7.  dest NAT whith port-trans
+
+[edit security nat destination]
+
+pool %% {
+	address {
+		%ip/pref1% port %%;
+	}
+}
+rule-set %% {
+	from %%;
+	rule %% {
+		match {
+			destination-address%%;
+			destinatio-port %%;
+}
+		then {
+			destination-nat pool %%;
+}}}
+
+8. static NAT
+
+[edit security nat static]
+
+rule-set %% {
+	from %%;
+	rule %% {
+		match {
+			destination-address %ip%;
+}
+		then {
+			static-nat prefix %ip%;
+}}
+
+9. proxy ARP
+
+[edit security nat]
+
+proxy-arp {
+	interface %% {
+		address {
+			%ip1% to %ip666;
+			%ip%;
+}}}
+
+
+
+IPsec
+
+
+1. conf IKE phase1 (proposal-> policy -> gateway)
+
+[edit security ike]
+
+proposal %name% {
+	autentication-method [pre-shared-keys | rsa];
+	dh-group [];
+	autentication-algoritm [];
+	encryption-algoritm [];
+	lifetime-seconds %%;
+}
+
+policy %name% {
+	mode [main | aggressive];
+	proposals %name% | proposal-set [по дефолту];
+	pre-shared-key [];
+}
+
+gateway	%name% {
+	ike-policy %name%;
+	address %ip%;
+	external-interface %%;
+	dead-peer-detection {
+		interval %sec%;
+		threshold %num%;
+}}
+
+2. IKE phase 2 (proposal -> policies -> tunnel)
+
+[edit security ipsec]
+
+proposal %name% {
+	protocol [ah \ esp];
+	authentication-algorithm [];
+	encryption-algorithm [];
+	lifetime-kilobytes %;
+	lifetime-seconds %%;
+}
+
+policy %name% {
+	perfect-forward-secrecy {
+		keys [group%%];
+		proposals %name%;
+}}
+
+vpn %name% {
+	bind-interface st0.x; #для route-based
+	ike {
+		gateway %name%;
+		ipsec-policy %name%;
+	}
+	manual {для лохов
+}
+	establish-tunnels [immideatly | on-traffic];
+}
+
+
+3. apply
+
+[edit security policies from-zone..... policy %% then]
+
+permit {
+	tunnel {
+		ipsec-vpn %name%;
+}}
+
+#для route-based:
+
+set interface sx0.x в зоне + static-route на него
+
+
+
+show security ike security-associations
+show security ipsec security-associations
+show security ipsec statistics
+
+
+
+
+IDP
+
+1. все в [edit security idp idp-policy recommended rulebase-ips]
+
+2. applying
+
+[edit security policies .... %zone-name%]
+
+policy %% {
+	then {
+		permit {
+			application-services idp;
+}}}
+
+[edit security]
+
+	 idp active-policy %name%;
+
+3. update сигнатур
+
+> request system license add 
+> show system license
+> request security idp security-package download check-server
+> request security idp security-package download full-update
+> request security idp security-package install
+> request security idp security-package install status
+> show security idp security-package-version
+
+или
+
+[edit]
+
+security {
+	idp {
+		security-paskage {
+			automatic {
+				start-time %%;
+				interval %%;
+				enable;
+}}}}
+
+4. update idp dufault-policy
+
+> request security idp security-package download policy-temptates
+> request security idp security-package install policy-temptates
+ 
+[edit]
+
+set system scripts commit file temptates.xsl
+set active-policy Recommended
+deactivate file temptates.xsl
+добавить всю хурму в полиси между зонами
+commit
+
+
+> show security policies policy-name default-permit detail
+> show security idp status
+> show security idp counters
+> show security idp memory
+
