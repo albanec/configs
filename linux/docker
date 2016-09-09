@@ -1,5 +1,4 @@
-### 1. Установка и подготовка к работе 
-#
+### 1. docker
 ## 1.1 Установка движка
 # добавить оф. реп проекта
 sudo apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
@@ -21,9 +20,40 @@ sudo apt-get install -y docker-engine
 # проверка демона
 sudo systemctl status docker
 sudo docker info
+## 1.1 Работа с docker контейнерами
+# поиск образа на dockerhub
+docker search centos
+# загрузить нужный образ из docker hub
+docker pull training/sinatra
+# запуск контейнера из репа
+sudo docker run -d -p 8787:8787 rocker/rstudio
+# зайти в контейнер
+sudo docker exec -it <container-id> bash
+# коммит после изменений внутри контейнера
+docker commit -m "Added json gem" -a "Kate Smith" \
+  $containerID ouruser/sinatra:v2
+# переписать таг контейнера
+docker tag 5db5f8471261 ouruser/sinatra:devel
+# залогиниться на Dockerhub
+docker login
+# загрузить образ на docker-hub
+docker push ouruser/sinatra
+# удалить контейнер
+docker rmi training/sinatra
+# 1.2 Сборка контейнера из Dockerfile
+mkdir sinatra
+cd sinatra
+touch Dockerfile
+docker build -t ouruser/sinatra:v2 .
+# примерная структура Dockerfile
+# FROM ubuntu:14.04
+# MAINTAINER Kate Smith <ksmith@example.com>
+# RUN apt-get update && apt-get install -y ruby ruby-dev
+# RUN gem install sinatra
 #
-## 1.2 Установка docker-machine
-## установка
+#
+### 2. docker-machine
+## 2.1 Установка
 sudo -i
 # образ
 curl -L https://github.com/docker/machine/releases/download/v0.8.1/docker-machine-`uname -s`-`uname -m` > /usr/local/bin/docker-machine && \
@@ -37,37 +67,7 @@ exit
 echo "PS1='[\u@\h \W$(__docker_machine_ps1)]\$ '" >> ~/.bashrc
 # проверка
 docker-machine version
-#
-## 1.3 Установка docker-compose 
-sudo -i
-curl -L https://github.com/docker/compose/releases/download/1.8.0/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose
-chmod +x /usr/local/bin/docker-compose
-exit
-# проверка 
-docker-compose --version
-# удаление
-rm /usr/local/bin/docker-compose
-#
-## 1.4 Установка & запуск Weave Scope 
-sudo curl -L git.io/scope -o /usr/local/bin/scope
-sudo chmod a+x /usr/local/bin/scope
-sudo scope launch
-#
-## 1.5 Установка & запуск cAdvisor 
-sudo docker run \
-  --volume=/:/rootfs:ro \
-  --volume=/var/run:/var/run:rw \
-  --volume=/sys:/sys:ro \
-  --volume=/var/lib/docker/:/var/lib/docker:ro \
-  --publish=8080:8080 \
-  --detach=true \
-  --name=cadvisor \
-  google/cadvisor:latest
-#
-#
-### 2. Окружения
-#
-## 2.1 Создание окружения
+## 2.2 Создание окружения
 # создание VirtualBox VM с установленными внутри нее CoreOS и Docker
 sudo docker-machine create -d virtualbox newEnv
 # проверка статуса
@@ -78,8 +78,7 @@ sudo docker-machine ls
 # автонастройка параметров окружения на нужный env (линковка docker и окружения)
 docker-machine env newEnv
 eval "$(docker-machine env newEnv)"
-#
-## 2.2 Работа с окружением
+## 2.3 Работа с окружением
 # зайти в окружение
 docker-machine ssh newEnv
   # в окружение прозрачно монтируется папка /home - это позволяет прозрачно использовать /home/* в контейнерах
@@ -95,38 +94,18 @@ docker-machine rm newEnv
 # ip
 docker-machine rm newEnv
 #
-### 3. Работа с docker контейнерами
 #
-# поиск образа на dockerhub
-docker search centos
-# загрузить нужный образ из docker hub
-docker pull training/sinatra
-# запуск контейнера из репа
-sudo docker run -d -p 8787:8787 rocker/rstudio
-# коммит после изменений внутри контейнера
-docker commit -m "Added json gem" -a "Kate Smith" \
-  $containerID ouruser/sinatra:v2
-# переписать таг контейнера
-docker tag 5db5f8471261 ouruser/sinatra:devel
-# залогиниться на Dockerhub
-docker login
-# загрузить образ на docker-hub
-docker push ouruser/sinatra
-# удалить контейнер
-docker rmi training/sinatra
-#
-# 3.1 Сборка контейнера из Dockerfile
-mkdir sinatra
-cd sinatra
-touch Dockerfile
-docker build -t ouruser/sinatra:v2 .
-# примерная структура Dockerfile
-# FROM ubuntu:14.04
-# MAINTAINER Kate Smith <ksmith@example.com>
-# RUN apt-get update && apt-get install -y ruby ruby-dev
-# RUN gem install sinatra
-#
-### 4. Работа с docker-compose
+### 3. docker-compose 
+## 3.1 Установка 
+sudo -i
+curl -L https://github.com/docker/compose/releases/download/1.8.0/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose
+chmod +x /usr/local/bin/docker-compose
+exit
+# проверка 
+docker-compose --version
+# удаление
+rm /usr/local/bin/docker-compose
+## 3.1 Работа с docker-compose
 # запуск контейнеров по docker-compose.yml
 docker-compose up -d
 # проверить состояние
@@ -147,3 +126,25 @@ docker-compose up -d
   #     image: redis
   # volumes:
   #   logvolume01: {}
+#
+#
+### 4. Weave Scope 
+## Установка & запуск Weave Scope 
+sudo curl -L git.io/scope -o /usr/local/bin/scope
+sudo chmod a+x /usr/local/bin/scope
+sudo scope launch
+#
+#
+### 5. cAdvisor 
+## Установка & запуск cAdvisor 
+sudo docker run \
+  --volume=/:/rootfs:ro \
+  --volume=/var/run:/var/run:rw \
+  --volume=/sys:/sys:ro \
+  --volume=/var/lib/docker/:/var/lib/docker:ro \
+  --publish=8080:8080 \
+  --detach=true \
+  --name=cadvisor \
+  google/cadvisor:latest
+#
+#
