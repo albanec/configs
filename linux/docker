@@ -1,4 +1,5 @@
 ### 1. docker
+#
 ## 1.1 Установка движка
 # добавить оф. реп проекта
 sudo apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
@@ -20,6 +21,7 @@ sudo apt-get install -y docker-engine
 # проверка демона
 sudo systemctl status docker
 sudo docker info
+#
 ## 1.1 Работа с docker контейнерами
 # поиск образа на dockerhub
 docker search centos
@@ -40,6 +42,7 @@ docker login
 docker push ouruser/sinatra
 # удалить контейнер
 docker rmi training/sinatra
+#
 # 1.2 Сборка контейнера из Dockerfile
 mkdir sinatra
 cd sinatra
@@ -50,9 +53,9 @@ docker build -t ouruser/sinatra:v2 .
 # MAINTAINER Kate Smith <ksmith@example.com>
 # RUN apt-get update && apt-get install -y ruby ruby-dev
 # RUN gem install sinatra
-#
-#
+
 ### 2. docker-machine
+#
 ## 2.1 Установка
 sudo -i
 # образ
@@ -78,6 +81,7 @@ sudo docker-machine ls
 # автонастройка параметров окружения на нужный env (линковка docker и окружения)
 docker-machine env newEnv
 eval "$(docker-machine env newEnv)"
+#
 ## 2.3 Работа с окружением
 # зайти в окружение
 docker-machine ssh newEnv
@@ -93,9 +97,9 @@ docker-machine stop newEnv
 docker-machine rm newEnv
 # ip
 docker-machine rm newEnv
-#
-#
+
 ### 3. docker-compose 
+#
 ## 3.1 Установка 
 sudo -i
 curl -L https://github.com/docker/compose/releases/download/1.8.0/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose
@@ -105,7 +109,8 @@ exit
 docker-compose --version
 # удаление
 rm /usr/local/bin/docker-compose
-## 3.1 Работа с docker-compose
+#
+## 3.2 Работа с docker-compose
 # запуск контейнеров по docker-compose.yml
 docker-compose up -d
 # проверить состояние
@@ -126,15 +131,13 @@ docker-compose up -d
   #     image: redis
   # volumes:
   #   logvolume01: {}
-#
-#
+
 ### 4. Weave Scope 
 ## Установка & запуск Weave Scope 
 sudo curl -L git.io/scope -o /usr/local/bin/scope
 sudo chmod a+x /usr/local/bin/scope
 sudo scope launch
-#
-#
+
 ### 5. cAdvisor 
 ## Установка & запуск cAdvisor 
 sudo docker run \
@@ -146,5 +149,4 @@ sudo docker run \
   --detach=true \
   --name=cadvisor \
   google/cadvisor:latest
-#
 #
