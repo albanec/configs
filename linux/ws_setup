@@ -1,0 +1,4 @@
+sudo apt-get remove -y gnome-sudoku gnome-mines gnome-software gnome-user-guide xfburn xfce4-notes \ 
+orage parole libreoffice-* ristretto pidgin update-notifier
+
+ppa-purge

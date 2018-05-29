@@ -1,0 +1,14 @@
+########## 1. Minikube
+
+minikube version
+# запуск
+minikube start
+# информация о кластере
+kubectl cluster-info
+# ноды кластера
+kubectl get nodes
+
+# создание и старт контейнера
+kubectl run first-deployment --image=katacoda/docker-http-server --port=80
+# список запущенных сервисов
+kubectl get pods

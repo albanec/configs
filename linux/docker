@@ -1,5 +1,5 @@
-### 1. docker
-#
+########## 1. docker
+
 ## 1.1 Установка движка
 # добавить оф. реп проекта
 sudo apt-key adv --keyserver hkp://p80.pool.sks-keyservers.net:80 --recv-keys 58118E89F3A912897C070ADBF76221572C52609D
@@ -21,19 +21,34 @@ sudo apt-get install -y docker-engine
 # проверка демона
 sudo systemctl status docker
 sudo docker info
-#
-## 1.1 Работа с docker контейнерами
+
+## 1.2 Работа с docker контейнерами
+
 # поиск образа на dockerhub
 docker search centos
 # загрузить нужный образ из docker hub
 docker pull training/sinatra
-# запуск контейнера из репа
-sudo docker run -d -p 8787:8787 rocker/rstudio
+# создать контейнер (без запуска)
+docker create -v /config --name dataContainer busybox
+# копировать файлы в контейнер
+docker cp config.conf dataContainer:/config/
+# запуск контейнера из репа в фоне с маппингом трафика
+sudo docker run -d -p 1.1.1.1:8787:8787 rocker/rstudio
+# маппинг контейнера на рандомный порт 
+docker run -d --name redisDynamic -p 6379 redis:latest
+# монтирование папок
+docker run -d --name redisMapped -v /opt/docker/data/redis:/data redis
+# монтировать конейнеру диск другого контейнера
+docker run --volumes-from dataContainer ubuntu 
+# задать контейнеру переменные среды
+docker run -d --name my-production-running-app -e NODE_ENV=production -p 3000:3000 my-nodejs-app
+# проверить маппинг портов
+docker port redisDynamic
 # зайти в контейнер
 sudo docker exec -it <container-id> bash
 # коммит после изменений внутри контейнера
 docker commit -m "Added json gem" -a "Kate Smith" \
-  $containerID ouruser/sinatra:v2
+    $containerID ouruser/sinatra:v2
 # переписать таг контейнера
 docker tag 5db5f8471261 ouruser/sinatra:devel
 # залогиниться на Dockerhub
@@ -42,21 +57,415 @@ docker login
 docker push ouruser/sinatra
 # удалить контейнер
 docker rmi training/sinatra
-#
+# экспортировать контейнер в tar.gz
+docker export dataContainer > dataContainer.tar
+# импортировать контейнер из tar.gz
+docker import dataContainer.tar
+# cсмонтировать папку (откуда/куда)
+docker run  -v /docker/redis-data:/backup ubuntu ls /backup
+# задать права на доступ к тому
+docker run -v /docker/redis-data:/data:ro -it ubuntu 
+# вывод инфы, которую контейнер выводит в error/standart каналы
+docker logs newEnv
+# подключеине syslog
+docker run -d --name redis-syslog --log-driver=syslog redis
+# отключить syslog
+docker run -d --name redis-none --log-driver=none redis
+# добавить метку  
+docker run -l user=12345 -d redis
+# добавить метки из файла
+docker run --label-file=labels -d redis
+# вывести инфу о контейнере (JSON)
+docer inspect container_name
+# вывести метки
+docker inspect -f "{{json .Config.Labels }}" rd
+
+## лимитирование ресурсов
+# mem
+docker run -d --name mb100 --memory 1
+# cpu (50%/25% в данном примере)
+docker run -d --name c768 --cpuset-cpus 0 --cpu-shares 76
+docker run -d --name c256 --cpuset-cpus 0 --cpu-shares 256 benhall/stress
+# net 
+docker run -it --net=host alpine ip addr show # пробросить хостовые интерфейсы в контейнер
+
+#список активных контейнеров
+docker ps
+    # только имена
+    docker ps -q
+    # форматиование вывода (использует golang синтаксис)
+    docker ps --format '{{.Names}} container is using {{.Image}} image'
+    docker ps --format 'table {{.Names}}\t{{.Image}}'
+    docker ps -q | xargs docker inspect --format '{{ .Id }} - {{ .Name }} - {{ .NetworkSettings.IPAddress }}'
+
+# фильтр вывода по меткам
+docker ps --filter "label=user=scrapbook"
+docker images --filter "label=vendor=Katacoda"
+# метки на демона
+docker -d \
+-H unix:///var/run/docker.sock \
+--label com.katacoda.environment="production" \
+--label com.katacoda.storage="ssd"
+# статистика по сервисам 
+docker ps -q | xargs docker stats
+
+# рестарт при ошибке (restart=always - перезапускать постоянно)
+docker run -d --name restart-3 --restart=on-failure:3 scrapbook/docker-restart-example
+
 # 1.2 Сборка контейнера из Dockerfile
 mkdir sinatra
 cd sinatra
 touch Dockerfile
 docker build -t ouruser/sinatra:v2 .
-# примерная структура Dockerfile
-# FROM ubuntu:14.04
-# MAINTAINER Kate Smith <ksmith@example.com>
-# RUN apt-get update && apt-get install -y ruby ruby-dev
-# RUN gem install sinatra
+# просмотреть образы
+docker images
 
-### 2. docker-machine
-#
-## 2.1 Установка
+## примерная структура Dockerfile
+    # определяет базовый image
+    FROM ubuntu:14.04 
+    MAINTAINER Kate Smith <ksmith@example.com>
+    # копировать файлы в папку внутри контейнера (из папки с dockefile)
+    COPY . /usr/share/nginx/html 
+    # выполняет команды при сборке образа
+    RUN apt-get update && apt-get install -y ruby ruby-dev 
+    RUN gem install sinatra
+    # определяет порты, которые будут открыты у докера
+    EXPOSE 80 433 
+    # команды для выполнения при старте контейнера
+    CMD ["nginx", "-g", "daemon off;"]
+    # задать рабочую директорию
+    WORKDIR /src/app 
+    # возможно создать внутри dockerfile инструкции, которые будет выполнены при использовании образа в качестве исходного в будующем
+    # т.е. образ соберётся даже если каких то файлов не хватет и пр.
+    ONBUILD COPY package.json /usr/src/app/
+    ONBUILD RUN npm install
+    ONBUILD COPY . /usr/src/app
+    # добывить метку
+    LABEL vendor=Katacoda
+    # healthcheck для сервиса
+    HEALTHCHECK --timeout=1s --interval=1s --retries=3 \
+        CMD curl -s --fail http://localhost:80/ || exit 1
+
+# можно создавать multistage сборки
+# First Stage
+FROM golang:1.6-alpine
+RUN mkdir /app
+ADD . /app/
+WORKDIR /app
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o main .
+# Second Stage
+FROM alpine
+EXPOSE 80
+CMD ["/app"]
+# Copy from first stage
+COPY --from=0 /app/main /app
+
+# для исключения файлов из процесса сборки образа необходимо создать .dockerignore
+echo temp.sh >> .dockerignore
+
+## 1.3 Работа с сетью
+
+## линковка контейнеров
+    # при линковке запускаемому контейнеру передаются переменные окружения с данными прилинкованного
+    # также он будет содержать /etc/hosts с записями о прилинкованном контейнере
+docker run --link redis-server:redis alpine
+
+## работа с сетью
+# создать сеть
+docker network create backend-network
+# запустить контейнер с привязкой к сети
+docker run -d --name=redis --net=backend-network redis
+    # узлы сети привязываются к dns 127.0.0.11 и подтягивабт хостнеймы всег привязыных к сети нод
+# привязать контейнер к сети
+docker network connect frontend-network redis
+# привязать контейнер к сети с присвоением алиаса
+docker network connect --alias db frontend-network2 redis   
+# отключить от сети
+docker network disconnect frontend-network redis
+# просмотр списка сетей
+docker network ls
+# подробная информация о сети
+docker network inspect frontend-network
+
+# 1.4 Балансировка нагрузки 
+
+## nginx-proxy
+# необходимо создать сокет-файл для взаимодействия балансировщика с сервисами
+# опционально задаётся handle-адрес сайта через переменную окружения
+docker run -d -p 80:80 \
+    -e DEFAULT_HOST=proxy.example \
+    -v /var/run/docker.sock:/tmp/docker.sock:ro \
+    --name nginx jwilder/nginx-proxy
+    # далее запускаются ноды nginx    
+    docker run -d -p 80 -e VIRTUAL_HOST=proxy.example katacoda/docker-http-server
+
+# 1.5 systemd
+
+# пример postgres.service
+[Unit]
+Description=PostgreSQL container
+Requires=docker.service
+After=docker.service
+[Service]
+Restart=on-failure
+RestartSec=10
+ExecStartPre=-/usr/bin/docker stop postgres
+ExecStartPre=-/usr/bin/docker rm postgres
+ExecStart=/usr/bin/docker run --name postgres \
+ --volume /opt/db/postgres:/var/lib/pgsql/data \
+ kiasaki/alpine-postgres
+ExecStop=/usr/bin/docker stop postgres
+[Install]
+WantedBy=multi-user.target
+# копировать 
+sudo cp postgres.service /etc/systemd/system
+# разрешить
+sudo systemctl enable /etc/systemd/system/postgres.service
+sudo systemctl start postgres.service
+
+########## 3. docker-compose 
+    
+## 3.1 Установка 
+sudo -i
+curl -L https://github.com/docker/compose/releases/download/1.8.0/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose
+chmod +x /usr/local/bin/docker-compose
+exit
+# проверка 
+docker-compose --version
+# удаление
+rm /usr/local/bin/docker-compose
+
+## 3.2 Работа с docker-compose
+# запуск контейнеров по docker-compose.yml
+docker-compose up -d
+# проверить состояние
+docker-compose ps
+# логи
+docker-compose ps
+# скалирование сервисов
+docker-compose scale web=3
+# остановить сервисы
+docker-compose stop
+# удалить сервисы
+docker-compose rm
+
+## примерная структура docker-compose.yml
+version: '2'
+    services:
+    web:
+        build: .
+        ports:
+        - "5000:5000"
+        volumes:
+        - .:/code
+        - logvolume01:/var/log
+        links:
+        - redis
+    redis:
+        image: redis
+        volumes:
+        logvolume01: {}
+
+
+
+########## 2. Docker Swarm Mode
+
+# компоненты:
+    # Node 
+        # инстансы докера, подключенные к swarm
+    # Services
+        # инстанс сервиса, содержит контейнеры и обвязку
+    # Load Balancing
+        # встроенный балансировщик для контейнеров сервиса
+# для общения между нодами swarm использует порт 2377
+
+# инициализация кластера
+docker swarm init
+# добавить ноду-воркер
+token=$(docker -H 172.17.0.61:2345 swarm join-token -q worker) && \
+    docker swarm join 172.17.0.61:2377 --token $token
+# добавить ноду-менеджер
+docker swarm join-token manager
+# список нод
+docker node ls
+# создать оверлейную сеть (под капотом vxlan)
+docker network create -d overlay skynet
+# шифровать IPSEC
+docker network create -d overlay --opt encrypted app1-network
+
+## создание сервиса (2 web-сервера в сети skynet, по-умолчения запросы балансируются)
+docker service create --name http --network skynet --replicas 2 -p 80:80 katacoda/docker-http-server
+# просмотреть сервисы
+docker service ls
+# запущенные сервисы
+docker service ps http
+# подробная информация о сервисе
+docker service inspect --pretty http
+# масштабирование сервиса
+docker service scale http=5
+
+# вывод адресов контейнеров
+docker service inspect http --format="{{.Endpoint.VirtualIPs}}"
+
+## rolling update компонентов сервиса
+docker service update --env-add KEY=VALUE http
+docker service update --limit-cpu 2 --limit-memory 512mb http
+docker service update --replicas=6 http
+docker service update --image katacoda/docker-http-server:v2 http
+
+## secret функционал
+# генерация 64bit токена
+< /dev/urandom tr -dc A-Za-z0-9 | head -c64 > tokenfile
+docker secret create deep_thought_answer_secure tokenfile
+# список токенов
+docker secret ls
+# создать зашифрованный сервис 
+docker service create --name="redis" --secret="deep_thought_answer_secure" redis
+# файл с токеном лежит в контейнере 
+docker exec $(docker ps --filter name=redis -q) ls -l /run/secrets
+docker exec $(docker ps --filter name=redis -q) cat /run/secrets/deep_thought_answer_secure
+
+## использование secrets в compose
+# пример yml (используется внешний secret)
+version: '3.1'
+services:
+    viewer:
+        image: 'alpine'
+        command: 'cat /run/secrets/deep_thought_answer_secure'
+        secrets:
+            - deep_thought_answer_secure
+secrets:
+    deep_thought_answer_secure:
+        external: true
+# запуск
+docker stack deploy -c docker-compose.yml secrets1
+docker logs $(docker ps -aqn1 -f status=exited)
+
+# пример yml с указанием файла с secret
+version: '3.1'
+services:
+    test:
+        image: 'alpine'
+        command: 'cat /run/secrets/secretcert'
+        secrets:
+            - secretcert
+secrets:
+    secretcert:
+        file: ./secret.crt
+# запуск
+docker stack deploy -c docker-compose.yml secrets2
+
+## доступность
+# отключить (все контейнеры будут запущены/смигрируют на ноду-менеджер)
+docker node update $worker --availability=drain
+# запустить (обратной миграции не произойдет)
+docker node update $worker --availability=active
+
+## настройка swarm через compose
+version: "3"
+services:
+    redis:
+        image: redis:alpine
+        volumes:
+            - db-data:/data
+        networks:
+        appnet1:
+            aliases:
+            - db
+        deploy:
+            placement:
+                constraints: [node.role == manager]
+    web:
+        image: katacoda/redis-node-docker-example
+        networks:
+            - appnet1
+        depends_on: # определяет порядок запуска сервисов
+            - redis
+        deploy:
+            mode: replicated
+            replicas: 2
+            labels: [APP=WEB]
+        resources:
+            limits:
+                cpus: '0.25'
+                memory: 512M
+            reservations:
+                cpus: '0.25'
+                memory: 256M
+        restart_policy:
+            condition: on-failure
+            delay: 5s
+            max_attempts: 3
+            window: 120s
+        update_config:
+            parallelism: 1
+            delay: 10s
+            failure_action: continue
+            monitor: 60s
+            max_failure_ratio: 0.3
+        placement:
+            constraints: [node.role == worker]
+networks:
+    appnet1:
+volumes:
+    db-data:
+# запуск compose
+docker stack deploy --compose-file docker-compose.yml myapp
+# проверка проекта
+docker stack ls
+# проверка сервисов
+docker stack services myapp
+# проверка контейнеров
+docker stack ps myapp
+
+
+########## 3. Prometheus 
+
+# https://prometheus.io
+
+# необходимо включить эксперементальный функционал демона (метрики отдаются на localhost:4444)
+sed -i 's/dockerd/dockerd --experimental --metrics-addr localhost:9323/g' /etc/systemd/system/docker.service
+systemctl daemon-reload
+systemctl restart docker
+# тест
+curl localhost:9323/metrics
+
+## настройка prometheus 
+# prometeus.yml
+global:
+    scrape_interval:     15s
+    evaluation_interval: 15s
+scrape_configs:
+    - job_name: 'prometheus'
+        static_configs:
+            - targets: ['localhost:9090', 'localhost:9100', 'localhost:9323']
+                labels:
+                    group: 'prometheus'
+# 9090 - порт prometheus
+# 9100 - порт Node Exporter, выдаёт данные по ноде 
+# 9323 - порт-коллектор данных от докера
+# данные хранятся в /prometheus/data на хост-машине
+
+# запуск
+docker run -d --net=host \
+    -v /root/prometheus.yml:/etc/prometheus/prometheus.yml \
+    --name prometheus-server \
+    prom/prometheus
+# запуск node-exporter
+docker run -d -p 9100:9100 \
+    -v "/proc:/host/proc" \
+    -v "/sys:/host/sys" \
+    -v "/:/rootfs" \
+    --net="host" \
+    --name=prometheus \
+    quay.io/prometheus/node-exporter:v0.13.0 \
+    -collector.procfs /host/proc \
+    -collector.sysfs /host/sys \
+    -collector.filesystem.ignored-mount-points "^/(sys|proc|dev|host|etc)($|/)"
+
+########## 3. docker-machine
+
+## 3.1 Установка
 sudo -i
 # образ
 curl -L https://github.com/docker/machine/releases/download/v0.8.1/docker-machine-`uname -s`-`uname -m` > /usr/local/bin/docker-machine && \
@@ -70,7 +479,8 @@ exit
 echo "PS1='[\u@\h \W$(__docker_machine_ps1)]\$ '" >> ~/.bashrc
 # проверка
 docker-machine version
-## 2.2 Создание окружения
+
+## 3.2 Создание окружения
 # создание VirtualBox VM с установленными внутри нее CoreOS и Docker
 sudo docker-machine create -d virtualbox newEnv
 # проверка статуса
@@ -81,13 +491,13 @@ sudo docker-machine ls
 # автонастройка параметров окружения на нужный env (линковка docker и окружения)
 docker-machine env newEnv
 eval "$(docker-machine env newEnv)"
-#
-## 2.3 Работа с окружением
+
+## 3.3 Работа с окружением
 # зайти в окружение
 docker-machine ssh newEnv
   # в окружение прозрачно монтируется папка /home - это позволяет прозрачно использовать /home/* в контейнерах
   # внутри окружения
-# подробная информация о окружении
+# подробная информация о окружении (вывод ip и прочие полезные штуки)
 docker-machine inspect newEnv
 # настройка окружения 
 docker-machine config newEnv
@@ -98,55 +508,205 @@ docker-machine rm newEnv
 # ip
 docker-machine rm newEnv
 
-### 3. docker-compose 
-#
-## 3.1 Установка 
-sudo -i
-curl -L https://github.com/docker/compose/releases/download/1.8.0/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose
-chmod +x /usr/local/bin/docker-compose
-exit
-# проверка 
-docker-compose --version
-# удаление
-rm /usr/local/bin/docker-compose
-#
-## 3.2 Работа с docker-compose
-# запуск контейнеров по docker-compose.yml
-docker-compose up -d
-# проверить состояние
-docker-compose up -d
-# примерная структура docker-compose.yml
-  # version: '2'
-  # services:
-  #   web:
-  #     build: .
-  #     ports:
-  #     - "5000:5000"
-  #     volumes:
-  #     - .:/code
-  #     - logvolume01:/var/log
-  #     links:
-  #     - redis
-  #   redis:
-  #     image: redis
-  # volumes:
-  #   logvolume01: {}
+########## 4. Weave 
 
-### 4. Weave Scope 
 ## Установка & запуск Weave Scope 
-sudo curl -L git.io/scope -o /usr/local/bin/scope
+sudo wget -O /usr/local/bin/scope \
+https://github.com/weaveworks/scope/releases/download/latest_release/scope
 sudo chmod a+x /usr/local/bin/scope
 sudo scope launch
 
-### 5. cAdvisor 
+## Weave Net
+curl -L https://github.com/weaveworks/weave/releases/download/v2.3.0/weave -o /usr/bin/weave && chmod +x /usr/bin/weave
+# на головной ноде
+weave launch
+# на остальных
+weave launch 172.17.0.79
+# проверить статус кластера
+wave status
+# переключить сеть на weaves прокси (на каждой ноде)
+eval $(weave env)
+
+
+########## 5. cAdvisor 
 ## Установка & запуск cAdvisor 
 sudo docker run \
-  --volume=/:/rootfs:ro \
-  --volume=/var/run:/var/run:rw \
-  --volume=/sys:/sys:ro \
-  --volume=/var/lib/docker/:/var/lib/docker:ro \
-  --publish=8080:8080 \
-  --detach=true \
-  --name=cadvisor \
-  google/cadvisor:latest
+    --volume=/:/rootfs:ro \
+    --volume=/var/run:/var/run:rw \
+    --volume=/sys:/sys:ro \
+    --volume=/var/lib/docker/:/var/lib/docker:ro \
+    --publish=8080:8080 \
+    --detach=true \
+    --name=cadvisor \
+    google/cadvisor:latest
 #
+
+########## 6. Security
+
+## сканер уязвимостей Clair (для images)
+# загрузка образа и конфига
+curl -OL https://raw.githubusercontent.com/coreos/clair/master/contrib/compose/docker-compose.yml
+mkdir clair_config && curl -L https://raw.githubusercontent.com/coreos/clair/master/config.yaml.sample -o clair_config/config.yaml
+# настройка postgres для хранения CVE
+sed 's/clair-git:latest/clair:v2.0.1/' -i docker-compose.yml && \
+    sed 's/host=localhost/host=postgres password=password/' -i clair_config/config.yaml
+docker-compose up -d postgres
+# выгрузка актуальных CVE
+curl -LO https://gist.githubusercontent.com/BenHall/34ae4e6129d81f871e353c63b6a869a7/raw/5818fba954b0b00352d07771fabab6b9daba5510/clair.sql
+docker run -it \
+    -v $(pwd):/sql/ \
+    --network "${USER}_default" \
+    --link clair_postgres:clair_postgres \
+    postgres:latest \
+        bash -c "PGPASSWORD=password psql -h clair_postgres -U postgres < /sql/clair.sql"
+# старт сервиса
+docker-compose up -d clair
+
+## проверка docker-репозиториев
+# установка Klar (читает и отправляет данные в Clair)
+curl -L https://github.com/optiopay/klar/releases/download/v1.5/klar-1.5-linux-amd64 \
+    -o /usr/local/bin/klar && chmod +x $_
+# проверка сервиса
+CLAIR_ADDR=http://localhost:6060 CLAIR_OUTPUT=Low CLAIR_THRESHOLD=10 \
+    klar quay.io/coreos/clair:v2.0.1
+# проверка и выдача JSON
+apt-get install jq
+CLAIR_ADDR=http://localhost:6060 CLAIR_OUTPUT=High CLAIR_THRESHOLD=10 JSON_OUTPUT=true \
+    klar postgres:latest | jq
+scanned.
+
+
+########## 7. ELK
+
+## Elasticsearch
+docker run -d \
+    -p 9200:9200 \
+    -p 9300:9300 \
+    --name elk_es \
+    -e LOGSPOUT=ignore \
+    elasticsearch:1.5.2
+
+## Kibana
+docker run -d \
+    -p 5601:5601 \
+    --link elk_es:elasticsearch \
+    --name kibana \
+    -e LOGSPOUT=ignore \
+    kibana:4.1.2
+
+## Logstash
+docker create -v /config --name logstash_config busybox 
+docker cp logstash.conf logstash_config:/config/
+docker run -d \
+    -p 5000:5000 \
+    -p 5000:5000/udp \
+    --volumes-from logstash_config \
+    --link elk_es:elasticsearch \
+    --name logstash \
+    -e LOGSPOUT=ignore \
+    logstash:2.1.1  -f /config/logstash.conf
+# logstash.conf
+input {
+  tcp {
+    port => 5000
+    type => syslog
+  }
+  udp {
+    port => 5000
+    type => syslog
+  }
+}
+filter {
+  if [type] == "syslog" {
+    grok {
+      match => { "message" => "%{SYSLOG5424PRI}%{NONNEGINT:ver} +(?:%{TIMESTAMP_ISO8601:ts}|-) +(?:%{HOSTNAME:containerid}|-) +(?:%{NOTSPACE:containername}|-) +(?:%{NOTSPACE:proc}|-) +(?:%{WORD:msgid}|-) +(?:%{SYSLOG5424SD:sd}|-|) +%{GREEDYDATA:msg}" }
+    }
+    syslog_pri { }
+    date {
+      match => [ "syslog_timestamp", "MMM  d HH:mm:ss", "MMM dd HH:mm:ss" ]
+    }
+    if !("_grokparsefailure" in [tags]) {
+      mutate {
+        replace => [ "message", "%{msg}" ]
+      }
+    }
+    mutate {
+      remove_field => [ "syslog_hostname", "syslog_message", "syslog_timestamp" ]
+    }
+  }
+}
+output {
+  stdout { codec => rubydebug }
+  if "_grokparsefailure" in [tags] or "_jsonparsefailure" in [tags] {
+    elasticsearch {
+      hosts => ["elasticsearch:9200"]
+      index => "parse-err-%{+YYYY.MM.dd}"
+    }
+  }
+  elasticsearch {
+    hosts => ["elasticsearch:9200"]
+    index => "logstash-%{+YYYY.MM.dd}"
+  }
+}
+
+## Logspout
+ip=$(cat /etc/hosts | grep docker | awk '{ print $1 }')
+docker run -d \
+    -v /var/run/docker.sock:/tmp/docker.sock \
+    --name logspout \
+    -e LOGSPOUT=ignore \
+    -e DEBUG=true \
+    --publish=$ip:8000:80 \
+    gliderlabs/logspout:master syslog://$ip:5000
+
+
+########## 8. Vault
+
+# конфигурация vault.hcl
+backend "consul" {
+  address = "consul:8500"
+  advertise_addr = "consul:8300"
+  scheme = "http"
+}
+listener "tcp" {
+  address = "0.0.0.0:8200"
+  tls_disable = 1
+}
+disable_mlock = true
+#
+docker create -v /config --name config busybox
+docker cp vault.hcl config:/config/
+# запуск Consul (бэкенд для хранения)
+docker run -d --name consul \
+    -p 8500:8500 \
+    consul:v0.6.4 \
+    agent -dev -client=0.0.0.0
+#
+docker run -d --name vault-dev \
+>   --link consul:consul \
+>   -p 8200:8200 \
+>   --volumes-from config \
+>   cgswong/vault:0.5.3 server -config=/config/vault.hcl
+#
+alias vault='docker exec -it vault-dev vault "$@"'
+export VAULT_ADDR=http://127.0.0.1:8200
+vault init -address=${VAULT_ADDR} > keys.txt
+vault unseal -address=${VAULT_ADDR} $(grep 'Key 1:' keys.txt | awk '{print $NF}')
+vault unseal -address=${VAULT_ADDR} $(grep 'Key 2:' keys.txt | awk '{print $NF}')
+vault unseal -address=${VAULT_ADDR} $(grep 'Key 3:' keys.txt | awk '{print $NF}')
+export VAULT_TOKEN=$(grep 'Initial Root Token:' keys.txt | awk '{print substr($NF, 1, length($NF)-1)}')
+vault auth -address=${VAULT_ADDR} ${VAULT_TOKEN}
+# запись
+vault write -address=${VAULT_ADDR} \
+    secret/api-key value=12345678
+# чтение
+vault read -address=${VAULT_ADDR} \
+    secret/api-key
+vault read -address=${VAULT_ADDR} \
+    -field=value secret/api-key
+# читать данные через API
+curl -H "X-Vault-Token:$VAULT_TOKEN" \
+    -XGET http://docker:8200/v1/secret/api-key
+curl -s -H  "X-Vault-Token:$VAULT_TOKEN" \
+    -XGET http://docker:8200/v1/secret/api-key \
+    | jq -r .data.value
