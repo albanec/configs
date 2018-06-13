@@ -1,3 +1,6 @@
+# package
+sudo apt-get install vlan
+
 #trunk
 auto eth0.1400
 iface eth0.1400 inet static
