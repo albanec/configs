@@ -10,8 +10,9 @@ sudo dpkg -i google-chrome-stable_current_amd64
 sudo apt-get install -y keepassx terminator plank openvpn screenfetch curl numix-icon-theme p7zip-full p7zip-rar \
 xubuntu-restricted-extras
 #
-wget -O- https://telegram.org/dl/desktop/linux | sudo tar xJ -C /opt/
-sudo ln -s /opt/Telegram/Telegram /usr/local/bin/telegram-desktop
+mkdir ~/Templates/gear
+wget -O- https://telegram.org/dl/desktop/linux | sudo tar xJ -C ~/Templates/gear
+sudo ln -s ~/Templates/gear/Telegram/Telegram /usr/local/bin/telegram-desktop
 #
 wget https://download.truecrypt.ch/current/truecrypt-7.1a-linux-x64.tar.gz 
 tar xvf truecrypt-7.1a-linux-x64.tar.gz
