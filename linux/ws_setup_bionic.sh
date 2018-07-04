@@ -8,7 +8,7 @@ wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
 sudo dpkg -i google-chrome-stable_current_amd64
 #
 sudo apt-get install -y keepassx terminator plank openvpn screenfetch curl numix-icon-theme p7zip-full p7zip-rar \
-xubuntu-restricted-extras
+xubuntu-restricted-extras qemu-kvm libvirt-bin bridge-utils virt-manager
 #
 mkdir ~/Templates/gear
 wget -O- https://telegram.org/dl/desktop/linux | sudo tar xJ -C ~/Templates/gear
@@ -66,7 +66,11 @@ net.ipv4.tcp_window_scaling = 1\n\
 net.ipv4.icmp_echo_ignore_broadcasts = 1\n\
 net.ipv4.icmp_ignore_bogus_error_responses = 1\n\
 net.ipv4.tcp_max_syn_backlog = 1280\n\
-kernel.core_uses_pid = 1' >> /etc/sysctl.conf"
+kernel.core_uses_pid = 1\n\
+net.bridge.bridge-nf-call-ip6tables=0\n\
+net.bridge.bridge-nf-call-iptables=0\n\
+net.bridge.bridge-nf-call-arptables=0\n\
+net.ipv4.ip_forward = 1' >> /etc/sysctl.conf"
 sudo sysctl -p
 #
 sudo ufw enable
