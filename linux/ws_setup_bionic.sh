@@ -8,7 +8,7 @@ wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
 sudo dpkg -i google-chrome-stable_current_amd64
 #
 sudo apt-get install -y keepassx terminator plank openvpn screenfetch curl numix-icon-theme p7zip-full p7zip-rar \
-xubuntu-restricted-extras qemu-kvm libvirt-bin bridge-utils virt-manager
+xubuntu-restricted-extras qemu-kvm libvirt-bin bridge-utils ppa-purge
 #
 mkdir ~/Templates/gear
 wget -O- https://telegram.org/dl/desktop/linux | sudo tar xJ -C ~/Templates/gear
