@@ -2,10 +2,10 @@
 sudo apt-get update
 sudo apt-get remove -y gnome-mines gnome-sudoku sgt-puzzles gnome-software xfburn xfce4-notes orage parole \
 libreoffice-* ristretto pidgin update-notifier numix-gtk-theme simple-scan xfce4-dict xfce4-weather-plugin \
-xfce4-cpugraph-plugin xterm xfce4-terminal mousepad 
+xfce4-cpugraph-plugin xterm xfce4-terminal mousepad
 #
 wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
-sudo dpkg -i google-chrome-stable_current_amd64
+sudo dpkg -i google-chrome-stable_current_amd64.deb
 #
 sudo apt-get install -y keepassx terminator plank openvpn screenfetch curl numix-icon-theme p7zip-full p7zip-rar \
 xubuntu-restricted-extras qemu-kvm libvirt-bin bridge-utils ppa-purge
@@ -14,7 +14,7 @@ mkdir ~/Templates/gear
 wget -O- https://telegram.org/dl/desktop/linux | sudo tar xJ -C ~/Templates/gear
 sudo ln -s ~/Templates/gear/Telegram/Telegram /usr/local/bin/telegram-desktop
 #
-wget https://download.truecrypt.ch/current/truecrypt-7.1a-linux-x64.tar.gz 
+wget https://download.truecrypt.ch/current/truecrypt-7.1a-linux-x64.tar.gz
 tar xvf truecrypt-7.1a-linux-x64.tar.gz
 sudo ./truecrypt-7.1a-linux-x64
 #
@@ -26,21 +26,21 @@ wget -q https://www.virtualbox.org/download/oracle_vbox_2016.asc -O- | sudo apt-
 sudo apt-add-repository -y "deb https://download.sublimetext.com/ apt/stable/" && \
     sudo add-apt-repository -y "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable edge" && \
     sudo add-apt-repository -y "deb https://download.virtualbox.org/virtualbox/debian bionic contrib" && \
-	sudo add-apt-repository -y ppa:numix/ppa    
+	sudo add-apt-repository -y ppa:numix/ppa
 	sudo add-apt-repository -y ppa:libreoffice/ppa
 sudo apt-get update
 #
 sudo apt install -y sublime-text docker-ce virtualbox-5.2 numix-gtk-theme numix-icon-theme-circle \
 	libreoffice-writer libreoffice-calc libreoffice-draw libreoffice-impress libreoffice-gtk libreoffice-style-elementary \
 	pulseaudio-equalizer \
-	fonts-firacode fonts-hack 
+	fonts-firacode fonts-hack
 # sudo usermod -aG docker ${USER}
 #
 wget https://github.com/LinxGem33/Plank-Themes/archive/master.zip
 7z x master.zip
 sudo cp Plank-Themes-master/Plank\ Themes/* /usr/share/plank/themes/ -r
 sudo chmod 755 /usr/share/plank/themes/* -R
-rm Plank-Themes-master -r 
+rm Plank-Themes-master -r
 rm master.zip
 #
 sudo sh -c "echo 'vm.swappiness = 10\n\
