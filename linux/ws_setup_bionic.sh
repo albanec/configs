@@ -36,12 +36,12 @@ sudo apt install -y sublime-text docker-ce virtualbox-5.2 numix-gtk-theme numix-
 	fonts-firacode fonts-hack
 # sudo usermod -aG docker ${USER}
 #
-wget https://github.com/LinxGem33/Plank-Themes/archive/master.zip
-7z x master.zip
+wget https://gitlab.com/LinxGem33/Plank-Themes/-/archive/master/Plank-Themes-master.zip
+7z x Plank-Themes-master.zip
 sudo cp Plank-Themes-master/Plank\ Themes/* /usr/share/plank/themes/ -r
 sudo chmod 755 /usr/share/plank/themes/* -R
 rm Plank-Themes-master -r
-rm master.zip
+rm Plank-Themes-master.zip
 #
 sudo sh -c "echo 'vm.swappiness = 10\n\
 net.ipv4.conf.all.accept_redirects = 0\n\
