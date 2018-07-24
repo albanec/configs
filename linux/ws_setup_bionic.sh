@@ -26,11 +26,11 @@ wget -q https://www.virtualbox.org/download/oracle_vbox_2016.asc -O- | sudo apt-
 sudo apt-add-repository -y "deb https://download.sublimetext.com/ apt/stable/" && \
     sudo add-apt-repository -y "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable edge" && \
     sudo add-apt-repository -y "deb https://download.virtualbox.org/virtualbox/debian bionic contrib" && \
-	sudo add-apt-repository -y ppa:numix/ppa
-	sudo add-apt-repository -y ppa:libreoffice/ppa
+    sudo add-apt-repository -y ppa:numix/ppa && \
+    sudo add-apt-repository -y ppa:libreoffice/ppa
 sudo apt-get update
 #
-sudo apt install -y sublime-text docker-ce virtualbox-5.2 numix-gtk-theme numix-icon-theme-circle \
+sudo apt install -y sublime-text docker-ce docker-compose virtualbox-5.2 numix-gtk-theme numix-icon-theme-circle \
 	libreoffice-writer libreoffice-calc libreoffice-draw libreoffice-impress libreoffice-gtk libreoffice-style-elementary \
 	pulseaudio-equalizer \
 	fonts-firacode fonts-hack
