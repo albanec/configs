@@ -335,3 +335,35 @@ fw tab -t connections -f
 ## Обработка политики
 # скомпилированная хранится на SMS (и шлюзах) в $FWDIR/state/<gateway>
 fw fetchlocal -d $FWDIR/state/_tmp/FW1
+
+### API
+# типы интерфейсов
+    # Management API
+    # Threat Prevention API
+    # Identity Awareness Web Services API
+    # OPSEC SDK
+
+# basic
+api status
+api start
+api stop
+login
+add
+set
+show
+delete
+publish
+discard
+logout
+add host name <New Host Name> ip-address <ip address>
+
+# login
+login user <username> password <password> --format json
+
+## mgmt_cli
+# для действий нужна аутентификация по sid
+mgmt_cli login user 'AdminUser1' password 'teabag' > id.txt
+mgmt_cli add host name 'New_Host_1' ip-address '1.1.1.1' -s id.txt
+mgmt_cli publish -s id.txt
+mgmt_cli logout -s id.txt
+mgmt_cli add host --batch hosts1.csv
