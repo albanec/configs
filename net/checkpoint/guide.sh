@@ -45,7 +45,7 @@ add bonding group 1 interface eth2
 set bonding group 1 mode active-backup
 set bonding group 1 primary eth1
 set interface bond1 ipv4-address 192.168.10.1 mask-length 24
-set interface bond1 comments “Internal”
+set interface bond1 comments "Internal"
 set interface eth1 state on
 set interface eth2 state on
 #  LACP
@@ -88,7 +88,7 @@ fw monitor
 fw monitor -o monitorfile.pcap
 fw monitor -e "accept src=203.0.113.100 or dst=10.1.1.201 and dport=21;" -ci 20 -o monitorfile2.pcap
     # общий вид
-    fw monitor -e “accept <expression>;” -o <filename>
+    fw monitor -e "accept <expression>;" -o <filename>
         # выражения
         host [<IP_Address>]
         net [<Network_IP_Address>, <Mask_Length>]
@@ -109,7 +109,7 @@ rows <integer>
 # уровень дебага
 debug [0 - 6]
 # баннер
-set message banner on msgvalue “This system is private and confidential”
+set message banner on msgvalue "This system is private and confidential"
 
 # сохранить конфиг в скрипт
 save configuration <scriptname>
@@ -251,7 +251,7 @@ Action:(drop OR reject OR block)
 
 ## примеры
 # заблокированное app ctrl
-blade: “application control” AND action:block
+blade: "application control" AND action:block
 # данные по обоим адресам
 192.0.2.133 10.19.136.101
 # данные по обному из адресов
@@ -355,7 +355,14 @@ delete
 publish
 discard
 logout
+# примеры
 add host name <New Host Name> ip-address <ip address>
+add network name "myNetwork" subnet 192.168.0.0 subnet-mask 255.255.255.0
+add group name "myGroup" members myHost1
+add host name "My Test Host" ip-address 192.168.0.111 groups myGroup
+set host name "myHost1" color "blue"
+add group name "myGroup1" members.1 "My Test Host" members.2 "A-GUI"
+
 
 # login
 login user <username> password <password> --format json
