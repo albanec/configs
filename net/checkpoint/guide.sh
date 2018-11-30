@@ -270,15 +270,24 @@ cpstat vpn -f traffic -o 1
 cphaprob state
 # расширеный вывод
 cphaprob state / cphaprob -a if / cphaprob -l list
+# состояние интерфейсов
+cphaprob -a if
+# нагрузка
+cphaprob stat
+# состояние синхронизации
+fw ctl pstat
 
 # переключение состояний
 clusterXL_admin up
 clusterXL_admin down
+
 ## VMAC
 # в ядре
 fw ha_vmac_global_param_enabled 1
 # в cli
 fw ctl set int fwha_vmac_global_param_enabled 1
+fw ctl get int fwha_vmac_global_param_enabled
+
 
 ### Upgrade SMS
 ## Миграция
