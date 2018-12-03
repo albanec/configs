@@ -77,8 +77,32 @@ fw stat
 fw fetch mastername
 push_cert –s Cust_CMA –u admin –p adminpw –o examplegw –k test123
 
+
+### SecureXL
 # отключить SecureXL
 fwaccel off
+# статистика SecureXL
+fwaccel stat
+fwaccel stats -s
+fwaccel conns
+
+### CoreXL
+sim affinity -l
+# распределение нагрузки по ядрам
+fw ctl multik stat
+# включить Dynamic Dispatcher
+fw ctl multik dynamic_dispatching on
+    # без приоритезации очередей
+    fw ctl multik prioq 2
+## Multi-Queue
+# использование Multi-Queue 
+cpmq get
+# включение Multi-Queue на интерфейсе
+cpmq set
+
+
+
+
 # gateway performance (cpu, memory, connections,...)
 cpview
 # CP process status
