@@ -1,0 +1,372 @@
+### Установка
+sudo pip install ansible
+
+# файл конфигурации 
+/etc/ansible/ansible.cfg
+
+
+########################################################################################################################
+### Inventory
+########################################################################################################################
+
+# файл с нодами. по-умолчанию, расположен в /etc/ansible/hosts
+# пример наполнения
+[routers]
+192.168.1.1
+router3 ansible_host=192.168.1.111
+192.168.1.10 ansible_become_pass=cisco123
+
+[all:vars]
+ansible_port=22
+
+[routers:var]
+ansible_user=cisco
+ansible_ssh_pass=cisco
+ansible_become=true
+ansible_become_method=enable
+ansible_become_pass=cisco
+ansible_network_os=ios
+
+[severs]
+192.168.1.2
+
+# кастомный путь к inventory-файлу
+ansible 192.168.1.1 -i ./hosts.cfg -m raw -a "show version" -u cisco -k
+
+# вывести наполнения inventory
+ansible --list-hosts all
+ansible --list-hosts routers
+ansible --list-hosts \!routers
+ansible --list-hosts routers[0]
+
+
+
+########################################################################################################################
+### Module
+########################################################################################################################
+
+# список основных модулей
+command     # простая передача комманда в shell без кортежей и прочих операторов/переменных 
+shell
+raw         # прямая передача команд в консоль  
+setup       # вывод информации о объектах
+file        # операции с файлами на объектах
+copy        # копирование файлов на объекты
+apt         # работа с apt на объектах
+user
+service     # работа с сервисами (systemctl)
+
+# модули для работы с ios
+ios_command # для operation команд
+ios_config  # для config команд
+
+# пример raw выполнение ad-hoc команд
+# адрес (или группа) должен присутствовать в inventory
+ansible 192.168.1.1 -m raw -a "show version" -u cisco -k
+ansible 192.168.1.1 -m raw -a "show arp" -u cisco -k | grep 'SUCCESS\|71' >> showarp.txt 
+
+# пример setup
+ansible -i ./hosts.cfg servers -m setup -u cisco -k > servers.info 
+
+# пример file
+ansible -i ./hosts.cfg 192.168.1.1 -m file -a "path=/home/cisco/new.cfg state=touch" -u cisco -k
+ansible -i ./hosts.cfg 192.168.1.1 -m file -a "path=/home/cisco/new.cfg state=absent" -u cisco -k
+ansible -i ./hosts.cfg 192.168.1.1 -m file -a "path=/home/cisco/new.cfg state=touch mode=400" -u cisco -k
+ansible -i ./hosts.cfg 192.168.1.1 -m file -a "path=/home/cisco/new_dir state=directory mode=755" -u cisco -k
+
+# пример copy
+ansible -i ./hosts.cfg servers -m copy -a "src=/home/cisco/new.cfg dest=/home/cisco/new.cfg" -u cisco -k
+
+# пример apt
+# проверка наличия пакета
+ansible -i ./hosts.cfg servers -m apt -a "name=nginx state=present update_cache=true" -u cisco -k --become -K
+
+# паример service
+ansible -i ./hosts.cfg servers -m service -a "name=nginx state=started" -u cisco -k --become -K
+ansible -i ./hosts.cfg servers -m service -a "name=nginx state=stopped" -u cisco -k --become -K
+
+# ping
+ansible -i ./hosts.cfg servers -m ping
+
+
+
+########################################################################################################################
+### Playbooks
+########################################################################################################################
+# упорядоченый лист тасков в YAML с тасками
+
+## структура yaml
+
+# начало/конец
+--- 
+...
+
+# list 
+os:
+- lunux
+- windows
+
+# dict/map
+---
+USA:
+  population: 325 million
+  location: North America
+...
+
+# list of dict
+---
+Devices:
+    # 1-й элемент
+    - vendor: Cisco
+      model:
+        os: IOS XR
+        ram: 1024
+    # 2-й элемент
+    - vendor: Arista
+      model:
+        os: vEOS
+        ram: 2048
+      year: 2006
+      features:
+        - a
+        - b
+        - c
+...
+
+
+### примеры плейбуков
+
+# старт плейбука
+ansible-playbook -i ./hosts show_bgp_neighbors.yaml -u cisco -k
+
+# вывод статусов bgp
+---
+- name: Show BGP Neighbors
+  hosts: routers
+  gather_facts: false
+
+  tasks:
+    - name: BGP Neighbors
+      raw: "show ip bgp neighbors"
+      register: output
+    - name: Printing Output
+      debug: var=output.stdout_lines
+...
+
+# запуск show
+---
+- name: Running show commands on Cisco
+  hosts: routers
+  gather_facts: false
+  connection: network_cli # для серверов использовать local
+  become: yes
+  become_method: enable
+ 
+  vars:         # можно перенести в inventory (см. выше)
+    ansible_user: cisco
+    ansible_ssh_pass: cisco
+    ansible_become_pass: cisco
+    ansible_network_os: ios
+    
+    # для local
+    #login:
+    #  username: cisco
+    #  password: cisco
+    #  auth_pass: cisco
+    #  authorize: true
+
+  tasks:
+    -name: Run commands
+      ios_command:
+        # provider: "{{login}}"
+        commands:
+          - show version
+          - show ip int brief
+      # запись в переменную
+      register: print_output
+
+    # для сохранения в файл
+    - name: Save output to a file
+      copy:
+        content: "{{ print_output.stdout[0] }}"
+        dest: "/home/cisco/lab/ansible/{{inventory_hostname}}.txt"
+
+    - debug: var=print_output.stdout_lines
+...
+
+# изменение конфига
+---
+- name: Config IOS
+  gather_facts: no
+  hosts: routers
+  connection: network_cli
+
+  tasks:
+    - name: Basic Config
+      ios_config:
+        save_when: modified
+        lines:
+          - hostname "{{inventory_hostname}}"
+          - ip name-server 8.8.8.8
+          - no ip http server
+      register: output
+    -name: Printing at the console
+      debug: var=output
+...
+
+# parents аргументы
+ios_config:
+  lines:
+    - net 0.0.0.0 0.0.0.0 area 0
+  parents: router ospf 1
+
+# after аргументы
+ios_config:
+  lines:
+    - int gig0/1
+    - ip add 192.168.1.1 255.255.255.0
+  after: no shut
+
+# backup
+tasks:
+  - name: Backup running config
+    ios_config:
+      backup: yes
+
+# loops
+  vars:
+    new_users:
+      - u1
+      - u2
+      - u3
+tasks:
+  - name: Add users using a loop
+    user:
+      name: "{{ item }}"
+      state: present # absent для удаления
+      groups: sudo
+    loop:
+      "{{ new_users }}"
+# или так 
+tasks:
+  - name: Add users using a loop
+    user:
+      name: "{{ item.name }}"
+      state: present
+      groups: "{{ item.groups }}"
+    loop:
+      - { name: "testuser1", groups: "sudo" }
+      - { name: "testuser2", groups: "wheel" }
+
+
+# apt & service & handlers
+---
+- hosts: servers
+  become: true
+  tasks:
+    - name: install package
+      apt: name={{item}} state=present update_cache=yes
+      loop:
+        - nginx
+        - curl
+    - name: ensure nginx started
+      service: name=nginx state=started enabled=yes
+      notify: restart service   # ипользование handler'a
+  handlers:                     # как обёртка для простых действий
+    - name: restart service
+      service: name=nginx state=restarted
+
+
+########################################################################################################################
+### Vault
+########################################################################################################################
+
+## Настройка
+
+# 
+echo "export EDITOR=nano" >> ~/.bashrc
+
+# создать шифрованый Vault файл
+ansible-vault create vault.yaml
+# добавить строки для объектов/групп вида
+# device_name_from_inventory:<pswd_for_user_on_device>
+router1_become_password: cisco
+
+# добавить ссылки на vault в inventory файл
+router1 ansible_host=192.168.1.1 ansible_become_pass="{{ router1_become_pass }}"
+
+## запустить плейбук
+ansible-playbook -i ./inventory playbook.yaml --ask-vault-pass -e@./vault.yaml
+
+# просмотреть vault файл
+ansible-vault view vault.yaml
+# редактировать vault файл
+ansible-vault edit vault.yaml
+# поменять vault-ключ
+ansible-vault rekey vault.yaml
+
+
+
+
+########################################################################################################################
+### Scalling Playbooks
+########################################################################################################################
+
+## структура плейбука
+playbook.yaml   # имя плейбука
+roles/
+    common/     # имя роли
+        files/
+        templates/
+            interfaces.j2
+            routing.j2
+        tasks/
+            main.yaml
+        handlers/
+        vars/
+            main.yaml
+        defaults/
+        meta/
+
+## плейбук с использованием ролей
+---
+- hosts:
+    - leafs
+    - spines
+  user: cumulus
+  become: yes
+  become_method: sudo
+  roles:
+    - networking    # хостам leafs & spines применяются роль networking
+...
+
+# пример var
+interfaces:
+  leaf1:
+    loopback: "10.2.1.1"
+    bond:
+      bond0:
+        members: ["swp1","swp2"]
+        address: "10.1.1.1/30"
+    bridges:
+      vlan_aware:
+        name: "bridge"
+        pvid: "1"
+        vids: "100 200"
+        members: ["swp3","swp5","swp6"]
+        svi:
+          bridge.100:
+            ip_and_mask: "10.3.3.1/24"
+
+# пример template
+{% set switch = interfaces[ansible_hostname] %}
+{% set loopback_ip = switch.loopback -%}
+
+auto lo0
+iface lo inet loopback
+{% if loopback_ip is defined -%}
+  address {{ loopback_ip }}/32
+{% ednif -%}
+
+auto eth0
+iface eth0 inet dhcp

@@ -1,0 +1,19 @@
+network:
+  version: 2
+  renderer: networkd
+  ethernets:
+    enp0s25:
+      dhcp4: true
+  bridges:
+    br0:
+      addresses: [ 10.31.1.100/24 ]
+    br1:
+      addresses: [ 10.1.255.3/24 ]
+    br2:
+      addresses: [ 10.2.255.3/24 ]
+    br_client1: 
+      addresses: [ 10.2.1.1/24 ]
+    br_client2: 
+      addresses: [ 10.2.2.1/24 ]
+    br_client3: 
+      addresses: [ 10.2.3.1/24 ]
