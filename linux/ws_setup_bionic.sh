@@ -30,7 +30,7 @@ sudo apt-add-repository -y "deb https://download.sublimetext.com/ apt/stable/" &
     sudo add-apt-repository -y ppa:libreoffice/ppa
 sudo apt-get update
 #
-sudo apt install -y sublime-text docker-ce docker-compose virtualbox-5.2 numix-gtk-theme numix-icon-theme-circle \
+sudo apt install -y sublime-text docker-ce docker-compose virtualbox-6.0 numix-gtk-theme numix-icon-theme-circle \
 	libreoffice-writer libreoffice-calc libreoffice-draw libreoffice-impress libreoffice-gtk libreoffice-style-elementary \
 	pulseaudio-equalizer \
 	fonts-firacode fonts-hack
