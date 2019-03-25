@@ -6,6 +6,12 @@
 passwd root
 /opt/VPNagent/bin/init.sh
 
+# лицензии 4.1
+Customer Code: DEMO
+Product Code: GATE100
+License Number: 110203
+License Code: D19F239DD83A94D1
+
 ## для версии 4.2
 # при запуске запускается initial_cli, учетка по-умолчанию administrator/s-terra
     # для перехода в bash: system
@@ -13,8 +19,19 @@ passwd root
 initialize
 run csconf_mgr activate
 
-# сменить пароль пользователя
-change user password
+# лицензии
+Product Code: GATE
+Customer Code: DEMO
+License Number: 1001882
+License Code: 42000-00A0P-P5HE7-MCXUM-EAJ5V
+
+Customer Code: DEMO
+Product Code: L2VPN
+License Number: 113064
+License Code: 42000-0000P-YK70K-174R6-ZVCAP
+
+# сменить пароль пользователя (в системе)
+[] change user password
 
 
 ## маппинг интерфейсов для VM
@@ -29,11 +46,63 @@ cert_mgr import -f /certs/ca.cer -t
 # генерация запроса 
 cert_mgr create -subj "C=RU,O=test,OU=test OU,CN=HUB" -GOST_R341012_256 -fb64 /home/gw_req
 
+## настройка времени
+run date -s "01/31/2017 15:00"
 
+## настройка NTP
+# в файле /etc/ntp.conf
+server <server_addr>
+restrict  default  ignore 
+restrict 127.0.0.1 nomodify  notrap
+driftfile /var/lib/ntp/ntp.drift
+logfile /var/log/ntpstats
+# /etc/default/ntp
+NTPD_OPTS='-g'
+# перезапуск и проверка
+/etc/init.d/ntp restart
+ntpq -p
+
+# перерегистрация лицензии 
+[] run lic_mgr set -p PRODUCT_CODE -c CUSTOMER_CODE -n LICENSE_NUMBER -l LICENSE_CODE
+
+########################################################################################################################
+### настройка GW 10G
+########################################################################################################################
+
+## инициализации
+change user password
+system
+cat /proc/cpuinfo
+exit
+initialize
+    # этапы:
+    # настройка ipsm_dpdk.cfg (установка числа тредов)
+        # число ядер - 6
+    # PCI_ID WAN-интерфейса
+    # l3_ip/l3_mask/default_gw
+    # PCI_ID LAN-интерфейса
+    # настройки L2 туннеля (src/dst)
+    # настройки MTU для wan/lan
+
+# для перезапуска инициализации, запустить скрипт в shell: /opt/VPNagent/bin/configure_dp.sh
+# конфигурация сохраняется в /opt/VPNagent/etc/ipsm_dpdk.cfg
+
+
+## настройка ssh
+run ifconfig -a | grep eth
+# в файле /etc/network/interfaces добавить
+    auto eth0
+    iface eth0 inet static
+    address 192.168.1.1
+    netmask 255.255.255.0
+run cat /etc/network/interfaces
+run ifup eth0
+
+## сертификаты
 
 
 ########################################################################################################################
-## настройка туннелей
+### настройка туннелей
 ########################################################################################################################
 
 # переход в cli (v4.1)
