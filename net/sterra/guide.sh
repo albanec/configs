@@ -1,18 +1,60 @@
 ########################################################################################################################
-### первоначальная настройка & инициализация шлюза
+### Общие настройки
 ########################################################################################################################
 
-## для версии 4.1
-passwd root
-/opt/VPNagent/bin/init.sh
+### маппинг интерфейсов для VM
+/bin/netifcfg enum > /home/map1
+/bin/netifcfg map /home/map1
+reboot
 
-# лицензии 4.1
-Customer Code: DEMO
-Product Code: GATE100
-License Number: 110203
-License Code: D19F239DD83A94D1
 
-## для версии 4.2
+### сертификаты
+# регистрация ca серта
+cert_mgr import -f /certs/ca.cer -t
+# генерация запроса 
+cert_mgr create -subj "C=RU,O=test,OU=test OU,CN=HUB" -GOST_R341012_256 -fb64 /home/gw_req
+# импорт CA-сертификата
+cert_mgr import -f media:041F-4C1B/ca.cer -t
+# импорт сертификата шлюза
+cert_mgr import -f media:041F-4C1B/gw1.cer
+# проверка
+cert_mgr show
+# CRL
+crypto pki trustpoint s-terra_technological_trustpoint
+crl download group GROUP http://10.0.221.179/certsrv/certcrl.crl
+crl download time <интервал в минутах>
+# отключить CRL
+revocation-check none
+
+
+## перерегистрация лицензии 
+[] run lic_mgr set -p PRODUCT_CODE -c CUSTOMER_CODE -n LICENSE_NUMBER -l LICENSE_CODE
+
+
+## настройка времени
+run date -s "01/31/2017 15:00"
+
+## настройка NTP
+# в файле /etc/ntp.conf
+server <server_addr>
+restrict  default  ignore 
+restrict 127.0.0.1 nomodify  notrap
+driftfile /var/lib/ntp/ntp.drift
+logfile /var/log/ntpstats
+# /etc/default/ntp
+NTPD_OPTS='-g'
+# перезапуск и проверка
+/etc/init.d/ntp restart
+ntpq -p
+
+
+
+########################################################################################################################
+### GW 4.2
+########################################################################################################################
+
+### первоначальная настройка & инициализация шлюза
+
 # при запуске запускается initial_cli, учетка по-умолчанию administrator/s-terra
     # для перехода в bash: system
     # для перехода в cisco-like_console: configure, учётка по-умолчанию cscons/csp
@@ -33,79 +75,119 @@ License Code: 42000-0000P-YK70K-174R6-ZVCAP
 # сменить пароль пользователя (в системе)
 [] change user password
 
+### настройка туннелей
+crypto isakmp identity dn
+crypto isakmp keepalive 10 2
+crypto isakmp keepalive retry-count 5
+# IKE
+crypto isakmp policy 1
+    authentication gost-sig
+    encr gost
+    hash gost341112-256-tc26
+    group vko2
+# IPsec
+crypto ipsec transform-set TSET esp-gost28147-4m-imit
+#
+ip access-list extended LIST
+    permit ip 192.168.1.0 0.0.0.255 192.168.2.0 0.0.0.255
+    permit ip 192.168.3.0 0.0.0.255 192.168.2.0 0.0.0.255
+ip access-list extended LIST2
+    permit ip 192.168.1.0 0.0.0.255 192.168.3.0 0.0.0.255
+    permit ip 192.168.2.0 0.0.0.255 192.168.3.0 0.0.0.255
+#
+crypto map CMAP 1 ipsec-isakmp
+    match address LIST
+    set transform-set TSET
+    set peer 10.1.2.2
+crypto map CMAP 2 ipsec-isakmp
+    match address LIST2
+    set transform-set TSET
+    set peer 10.1.3.2
+#
+interface GigabitEthernet 0/1
+    crypto map CMAP
 
-## маппинг интерфейсов для VM
-/bin/netifcfg enum > /home/map1
-/bin/netifcfg map /home/map1
-reboot
-
-
-### сертификаты
-# регистрация ca серта
-cert_mgr import -f /certs/ca.cer -t
-# генерация запроса 
-cert_mgr create -subj "C=RU,O=test,OU=test OU,CN=HUB" -GOST_R341012_256 -fb64 /home/gw_req
-
-## настройка времени
-run date -s "01/31/2017 15:00"
-
-## настройка NTP
-# в файле /etc/ntp.conf
-server <server_addr>
-restrict  default  ignore 
-restrict 127.0.0.1 nomodify  notrap
-driftfile /var/lib/ntp/ntp.drift
-logfile /var/log/ntpstats
-# /etc/default/ntp
-NTPD_OPTS='-g'
-# перезапуск и проверка
-/etc/init.d/ntp restart
-ntpq -p
-
-# перерегистрация лицензии 
-[] run lic_mgr set -p PRODUCT_CODE -c CUSTOMER_CODE -n LICENSE_NUMBER -l LICENSE_CODE
 
 ########################################################################################################################
-### настройка GW 10G
+### GW 10G
 ########################################################################################################################
 
 ## инициализации
-change user password
-system
-cat /proc/cpuinfo
-exit
 initialize
     # этапы:
     # настройка ipsm_dpdk.cfg (установка числа тредов)
-        # число ядер - 6
+        # число ядер минус 6
     # PCI_ID WAN-интерфейса
     # l3_ip/l3_mask/default_gw
     # PCI_ID LAN-интерфейса
-    # настройки L2 туннеля (src/dst)
+    # настройки L2 туннеля (src/dst - это произвольные адреса)
     # настройки MTU для wan/lan
+run csconf_mgr 
 
 # для перезапуска инициализации, запустить скрипт в shell: /opt/VPNagent/bin/configure_dp.sh
 # конфигурация сохраняется в /opt/VPNagent/etc/ipsm_dpdk.cfg
 
-
 ## настройка ssh
-run ifconfig -a | grep eth
+system
+ifconfig -a | grep eth
 # в файле /etc/network/interfaces добавить
     auto eth0
     iface eth0 inet static
     address 192.168.1.1
     netmask 255.255.255.0
-run cat /etc/network/interfaces
-run ifup eth0
+cat /etc/network/interfaces
+ifup eth0
+passwd
 
-## сертификаты
+### настройка туннеля
+crypto isakmp identity dn
+crypto isakmp keepalive 10 2
+crypto isakmp keepalive retry-count 5
+# параметры IKE
+crypto isakmp policy 1
+    authentication gost-sig
+        # для PSK
+        # authentication pre-share
+    encr gost
+    hash gost341112-256-tc26
+    group vko2
+# ключи для PSK
+crypto isakmp key KEY address 40.40.40.1
+# параметры IPSEC
+crypto ipsec transform-set TSET esp-gost28147-4m-imit
+mode tunnel
+#
+ip access-list extended LIST
+    permit ip host 172.16.0.1 host 172.16.0.2
+#
+crypto map CMAP 1 ipsec-isakmp
+    match address LIST
+    set transform-set TSET
+    set peer 10.1.1.2
+    set security-association lifetime kilobytes 4294967295
+#
+ip route 0.0.0.0 0.0.0.0 10.1.1.2
+#
+interface DP0
+    crypto map CMAP
+
+
 
 
 ########################################################################################################################
-### настройка туннелей
+### GW 4.1
 ########################################################################################################################
 
-# переход в cli (v4.1)
+passwd root
+/opt/VPNagent/bin/init.sh
+
+# лицензии
+Customer Code: DEMO
+Product Code: GATE100
+License Number: 110203
+License Code: D19F239DD83A94D1
+
+# переход в cli
 cs_console
 
 # установка сертификатов
@@ -158,12 +240,12 @@ interface GigabitEthernet 0/1
 ## резервирование
 # vrrp
 int gig0/0
-vrrp 2 priority 100
-vrrp 2 ip 20.20.20.10
-vrrp ip route 20.20.20.1 255.255.255.255 20.20.20.1 src 40.40.40.10
-vrrp notify master
-vrrp notify backup
-vrrp notify fault
+    vrrp 2 priority 100
+    vrrp 2 ip 20.20.20.10
+    vrrp ip route 20.20.20.1 255.255.255.255 20.20.20.1 src 40.40.40.10
+    vrrp notify master
+    vrrp notify backup
+    vrrp notify fault
 # проверка статуса туннелей
 sa_mgr show
 # провека лицензий
