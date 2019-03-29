@@ -13,8 +13,6 @@ reboot
 cert_mgr import -f /certs/ca.cer -t
 # генерация запроса 
 cert_mgr create -subj "C=RU,O=test,OU=test OU,CN=HUB" -GOST_R341012_256 -fb64 /home/gw_req
-# импорт CA-сертификата
-cert_mgr import -f media:041F-4C1B/ca.cer -t
 # импорт сертификата шлюза
 cert_mgr import -f media:041F-4C1B/gw1.cer
 # проверка
@@ -95,17 +93,26 @@ ip access-list extended LIST2
     permit ip 192.168.1.0 0.0.0.255 192.168.3.0 0.0.0.255
     permit ip 192.168.2.0 0.0.0.255 192.168.3.0 0.0.0.255
 #
+ip access-list extended FW
+    permit ahp host 172.17.255.2 host 172.17.255.1
+    permit esp host 172.17.255.2 host 172.17.255.1
+    permit ip host 172.17.255.2 eq 500 host 172.17.255.1 eq 500
+    permit icmp any any
+#
 crypto map CMAP 1 ipsec-isakmp
     match address LIST
     set transform-set TSET
+    set pfs vko2
     set peer 10.1.2.2
 crypto map CMAP 2 ipsec-isakmp
     match address LIST2
     set transform-set TSET
+    set pfs vko2
     set peer 10.1.3.2
 #
 interface GigabitEthernet 0/1
     crypto map CMAP
+    ip access-group FW in
 
 
 ########################################################################################################################
@@ -163,6 +170,7 @@ ip access-list extended LIST
 crypto map CMAP 1 ipsec-isakmp
     match address LIST
     set transform-set TSET
+    set pfs vko2
     set peer 10.1.1.2
     set security-association lifetime kilobytes 4294967295
 #
