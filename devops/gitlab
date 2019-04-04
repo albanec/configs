@@ -1,0 +1,20 @@
+### запуск 
+
+sudo docker run --detach \
+    --name gitlab \
+    -d gitlab/gitlab-ce:latest \
+    --publish 443:443 --publish 80:80 --publish 22:22 \
+    --hostname gitlab.example.com \
+    --restart=unless-stopped \
+    --volume $PWD/gitlab/config:/etc/gitlab \
+    --volume $PWD/gitlab/logs:/var/log/gitlab \
+    --volume $PWD/gitlab/data:/var/opt/gitlab \
+
+
+### upgrade
+# Pull the latest image
+docker pull gitlab/gitlab-ce:latest
+# kill and remove the existing container
+docker stop `gitlab`
+docker rm `gitlab`
+# Launch a new container using the new image.
