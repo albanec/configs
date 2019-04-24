@@ -36,7 +36,8 @@ run date -s "01/31/2017 15:00"
 # в файле /etc/ntp.conf
 server <server_addr>
 restrict  default  ignore 
-restrict 127.0.0.1 nomodify  notrap
+restrict 127.0.0.1 nomodify notrap
+restrict <server_addr> nomodify notrap
 driftfile /var/lib/ntp/ntp.drift
 logfile /var/log/ntpstats
 # /etc/default/ntp
