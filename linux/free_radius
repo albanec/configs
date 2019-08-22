@@ -1,0 +1,128 @@
+### установка
+sudo apt install freeradius freeradius-ldap freeradius-utils
+
+# проверка
+freeradius -v
+sudo freeradius -CX
+
+### настройка
+
+# обшая
+nano /etc/freeradius/radiusd.conf
+    # количество запросов (число устройств * 256)
+    max_requests = 1024
+    # ссылка на файл с клиентами
+    $INCLUDE clients.conf
+    # EAP
+    $INCLUDE eap.conf
+
+# настройка клиентов 
+nano /etc/freeradius/clients.conf
+    client P6-MOJO-1 {
+        ipaddr = 192.168.130.20
+        secret = strong-passphrase-here
+    }
+
+## настройка интеграции с LDAP
+# если файла ldap нет, создать ссылку
+cd /etc/freeradius/mods-enabled/
+ln -s ../mods-available/ldap ./
+nano ldap
+# в нём
+server = “ldaps://linuxmuster.internal.example.com”
+identity = “cn=admin,dc=internal,dc=example,dc=com”
+password = superSecretPassword
+base_dn = “ou=accounts,dc=internal,dc=example,dc=com”
+…
+group {
+    …
+     membership_filter = “(|(member=%{control:Ldap-UserDn})(memberUid=%{%{Stripped-User-Name}:-%{User-Name}}))”
+     …
+}
+# ???
+update {
+    control:Password-With-Header += ‘userPassword’
+    control:NT-Password := ‘sambaNTPassword’
+    …
+}
+# проверка соединения с LDAP
+systemctl restart freeradius.service
+radtest testuser password localhost 10 testing123
+
+## настройка EAP tls
+# настройка сертификатов
+cd  /etc/freeradius/certs/
+nano ca.cnf
+# в нём
+…
+[ CA_default ]
+…
+default_days = 3650
+…
+default_md = sha256
+…[ req ]
+…
+default_bits = 2048
+input_password = supersecretandlongpassword
+output_password = supersecretandlongpassword
+…[certificate_authority]
+countryName = US
+stateOrProvinceName = My State
+localityName = My Town
+organizationName = My School
+emailAddress = admin@my-school.org
+commonName = “CA Freeradius”
+…
+
+nano server.cnf
+…
+[ CA_default ]
+…
+default_days = 3560
+…
+default_md = sha256
+…[ req ]
+…
+default_bits = 2048
+input_password = supersecretandlongpassword
+output_password = supersecretandlongpassword [server]
+countryName = US
+stateOrProvinceName = My State
+localityName = My Town
+organizationName = My School
+emailAddress = admin@my-school.org
+commonName = “Freeradius Server Certificate”
+
+nano /etc/freeradius/mods-enabled/eap
+tls-config tls-common {
+    private_key_password = supersecretandlongpassword
+    …
+}
+
+# генерация сертификатов
+cd /etc/freeradius/certs/
+make
+
+nano /etc/freeradius/eap.conf
+# в нём
+# по-умолчанию default_eap_type = md5
+# настройка tls
+eap {
+    default_eap_type = ttls
+    ttls {
+        default_eap_type = mschapv2
+    }
+}
+
+## настройка учётных записей
+nano /etc/freeradius/users
+# в нём
+$username Cleartext-Password := "$password"
+
+## проверка работы аутентификации
+radtest rowell Password123 127.0.0.1 0 testing123
+
+### запуск
+service freeradius start
+sudo service freeradius reload
+service freeradius status
