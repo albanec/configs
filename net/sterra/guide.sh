@@ -265,17 +265,17 @@ run lic_mgr show
 dpkg -i /home/libpam-radius-auth_1.3.16-4.4_amd64.deb
 dpkg -i /home/libpam-script_1.1.5-1_amd64.deb
 # настройка подключения к серверу
-echo "192.168.1.5:1645 secret1 3" > /etc/pam_radius_auth.conf
+echo '192.168.1.5:1645 secret1 3' > /etc/pam_radius_auth.conf
 # настройка sshd модуля
-sh -c 'echo "auth optional pam_script.so \n\
-auth required pam_radius_auth.so" > /etc/pam.d/sshd'
+echo 'auth optional pam_script.so 
+auth required pam_radius_auth.so' > /etc/pam.d/sshd
+
 # скрипт для автоматического создания новых пользователей, при попытке подключения через SSH
 touch /usr/share/libpam-script/pam_script_auth
-sh -c 'echo "#!/bin/bash \n\
-if ! getent passwd $PAM_USER > /dev/null 2>&1; then \n\
-adduser $PAM_USER --disabled-password --quiet --gecos "" --shell \n\
-/opt/VPNagent/bin/cs_console \n\
-fi" >  /usr/share/libpam-script/pam_script_auth'
+echo '#!/bin/bash
+if ! getent passwd $PAM_USER > /dev/null 2>&1; then
+adduser $PAM_USER --disabled-password --quiet --gecos "" --shell /opt/VPNagent/bin/cs_console
+fi' >  /usr/share/libpam-script/pam_script_auth
 chmod +x /usr/share/libpam-script/pam_script_auth
 
 ## КП

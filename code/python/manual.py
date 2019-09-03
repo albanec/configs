@@ -427,8 +427,8 @@ def telnet_gns3(ip):
 # библиотека для работы с ssh
 
 
-apt-get build-essential libssl-dev
-apt-get install python-pip
+apt install build-essential libssl-dev
+apt install python-pip
 pip install --upgrade pip
 pip install cryptography
 pip install paramiko
@@ -1033,4 +1033,8 @@ data.close()
 import datetime
 now = datetime.datetime.now()
 today = str(now.year + '-' + str(now.month) + '-' + str(now.day))
+
+### Перемещения
+config_fileos.chdir(path)
+os.listdir()
 
