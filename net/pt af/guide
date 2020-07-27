@@ -1,0 +1,57 @@
+### разбор кластера
+
+# slave node
+cluster set mongo replset none
+cluster set elastic replset none
+cluster set elastic nodes ptaf2
+host add 127.0.1.1 ptaf1 ptaf2
+config commit
+
+# master node
+cluster set mongo replset none
+cluster set mongo nodes none
+cluster set elastic replset none
+cluster set elastic nodes ptaf1
+host add 127.0.1.1 ptaf2 ptaf1
+config commit
+
+
+### сбор кластера
+
+## настраиваем хосты
+# slave node
+host add 172.21.0.11 ptaf1
+host add 172.21.0.12 ptaf2
+config commit network
+
+# master node
+host add 172.21.0.11 ptaf1
+host add 172.21.0.12 ptaf2
+config commit network
+
+
+### проверка возможности подключения с ptaf1 на ptaf2 и наоборот с помощью mongo и elastic (должно быть успешное подключение)
+
+# master node
+mongo --authenticationDatabase admin -u root -p $(cat /opt/waf/conf/master_password) --host ptaf2
+curl -XGET -s -u root:$(cat /opt/waf/conf/master_password ) http://ptaf2:9200/_cat/shards?v
+
+# slave node
+mongo --authenticationDatabase admin -u root -p $(cat /opt/waf/conf/master_password) --host ptaf1
+curl -XGET -s -u root:$(cat /opt/waf/conf/master_password ) http://ptaf1:9200/_cat/shards?v
+
+
+### сбор кластера
+
+# slave node
+cluster set mongo replset waf
+cluster set elastic replset waf
+cluster set elastic nodes ptaf2 ptaf1
+config commit
+
+# master node
+cluster set mongo replset waf
+cluster set mongo nodes ptaf2
+cluster set elastic replset waf
+cluster set elastic nodes ptaf1 ptaf2
+config commit
