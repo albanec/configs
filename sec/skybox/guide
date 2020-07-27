@@ -1,0 +1,180 @@
+стандартный порт для Skybox Manager - 8443
+
+Skybox Server:
+    это J2EE процесс
+    в качестве БД - MySQL, прямого доступа к базе нет, цепляется к lo
+    req: 8cpu, 32gb, 500gb. large: 16cpu, 128gb, 1tb
+
+Skybox Collector
+    отдельный процесс-коллектор данных (в базовой инсталляции сервер и коллектор стоят в одной ВМ)
+    связь server<->collector по 9443/TCP. соелиние инициируется сервером
+    устанавливается так же, как и сервер
+    req 8cpu, 32gb, 500gb
+
+Многоуровневая архитектура логических уровней:
+    сбор данных (fw, rt, patch data, vulnurabilities, assets grouping, threat intelligence)
+    моделирование (комплексная модель сети, хостов, активов и угроз)
+    аналитика (network path, комплаенс и прочее)
+    + Skybox Vulnurability Database
+
+downloads.skyboxsecurity.com
+Документация в Installers -> Skybox_View -> latestDocs
+    установка в Skybox Virtual ApplianceQuick Start Guide 10.1.200
+
+root/skyboxview
+# настройки сети
+/etc/sysconfig/network-scripts/ifcfg-ens32
+    DEVICE=ens32
+    BOOTPROTO=static
+    IPADDR=192.168.0.155
+    NETMASK=255.255.255.0
+    GATEWAY=192.168.0.1
+    DNS1=192.168.0.54
+    DNS2=192.168.0.11
+    ONBOOT=yes
+systemctl restart network
+
+https://<appliance_ip>:444
+Credentials: skyboxview/skyboxview
+
+
+>> Построение моделей
+
+Данные по сетевым устройствам, FW, активам и уязвимостям заносятся в модель и анализируются модулями:
+    Firewall Assurance and Change Manager
+        анализирует ACL и роуты
+        проверяет комплаенс
+        ACL lifecircle
+    Network Assurance
+        анализ L3 топология и ACL
+        граф топологии
+        анализ сетевых доступностей
+    Vulnurability Control
+        анализ активов и уязвимостей
+        приоритизация угроз по степени риска
+Объекты модели могут быть 2-х типов:
+    сетевые (network)
+        VLAN
+        cloud
+        VPN
+        сети и др.
+    активы (assets)
+        серверы
+        АРМ
+        роутеры
+        FW
+        IPS и др.
+
+одно соединение == один сетевой объект
+
+
+Security Policy Management
+    Firewall Assurance
+    Network Assurance
+Compliance Analysis
+    Access Policy (NA)
+        проверяет доступность для трафика
+        Firewall Access Policy vs.Network Access Policy
+        основан на зонах
+    Rule Policy (FA)
+        проверяет правила на FW (мусор, shadow, бестпректис)
+        анализ без контекста
+        анализ кроссплатформенный
+        по дефолту проверяет все fw и девайсы с ACL
+
+Rule Usage Analysis
+    использует логи FW
+        LEA (Checkpoint OPSEC standard) for Checkpoint Firewall
+        Syslog for all the rest
+    анализирует счётчики (за день) по объектам и правилам
+    трассировка правил
+        адресс/порт
+        счётчики
+    в качестве коллектора используется syslog-ng
+
+Change Tracking
+    Log Based
+    Diff Based
+
+Для пересчёта модели:
+    Model Validation Task
+    Model Integrity
+Для пересчёта комплайнса запустить таски:
+    Analyze Firewall Policy Compliance
+    Analyze Rule Optimization Status
+    Analyze Network Policy Compliance
+
+>> VC
+network device analysis Task
+
+симуляция атаки запускается через таск:
+    Model Integrity
+    Analyze Simulation Attack
+    Analyze Security Metrics
+результаты симуляций:
+    VC->Analyses->Exposed and Exploitable->Exposed Vulnurabilities
+для обновления (~200mb) словарей запустить таск:
+    Dictionary Update
+формула риск скоринга:
+    Options | Vulnerability Control | Risk Score for Web Client
+
+
+
+
+Syslog Task:
+    Change Tracking Events - Syslog Import
+    General -> Traffic Events - Syslog Import
+
+WhatIf модель для аудита
+
+
+Create task type “Analysis - Vulnerability Detector”
+Add “Security Metrics”, “Model Integrity” and “Vulnerability Detector” tasks to the Daily task sequence
+Analyses -> Public Analyses -> Vulnerabilities -> By Exposure -> Exposed
+
+
+/usr/local/syboxwebadmin/manager
+
+/opt/skyboxview/utility/log
+/opt/skyboxview/data/xml_models
+/opt/skyboxview/data/settings_backup
+
+/opt/skyboxview/thirdparty/
+
+
+# настройки компонентов здесь
+/opt/skyboxview/server/conf/sb_server.properties
+/opt/skyboxview/collector/conf/sb_collector.properties
+/opt/skyboxview/app/conf/sb_app.properties
+#
+/opt/skyboxview/server/conf/sb_common.properties
+/opt/skyboxview/collector/conf/sb_common.properties
+/opt/skyboxview/app/conf/sb_common.properties
+
+# пути к логам
+/jboss/server/default/conf/jboss-log4j.xml
+    /opt/skyboxview/<compinent>/log/error.log
+    /opt/skyboxview/<compinent>/log/debug/debug.log
+    /opt/skyboxview/<compinent>/log/<component>.log
+    /opt/skyboxview/utility/log
+        boot.log
+        tasks.log
+        model.log
+
+# при нехватке места можно чистить папки
+/opt/skyboxview/data/xml_models
+/opt/skyboxview/data/sqlx_models
+/opt/skyboxview/data/settings_backup
+/opt/skyboxview/data/fixes
+/opt/skyboxview/updates
+
+# при нехватке места на коллекторе
+nano /opt/skyboxview/collector/conf/sb_collector.properties
+    devices.keep_temp_files=false
+# почистить
+/opt/skyboxview/data/collector/temp/
+
+
+
+
+health check
