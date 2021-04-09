@@ -1,0 +1,4 @@
+user@dest:/target$ nc -q 1 -l -p 1234 | tar xv
+user@dest:/target$ nc -q 1 -l -p 1234 | pv -pterb -s 100G | tar xv
+
+user@source:/source$ tar cv . | nc -q 1 dest-ip 1234
